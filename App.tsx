@@ -122,15 +122,16 @@ const ALL_BREEDS = [
 ].sort();
 
 
-const ProfileSetupScreen: React.FC<{ 
+const ProfileSetupScreen: React.FC<{
     user: User;
     onSetupComplete: (
-        profileData: Omit<UserProfile, 'auth_user_id' | 'email'>, 
+        profileData: Omit<UserProfile, 'auth_user_id' | 'email'>,
         petData: Omit<Pet, 'id' | 'auth_user_id' | 'notes'>
-    ) => void; 
-}> = ({ user, onSetupComplete }) => {
+    ) => void;
+    isProcessing: boolean;
+    error: string | null;
+}> = ({ user, onSetupComplete, isProcessing, error }) => {
     const [step, setStep] = useState(1);
-    const [isProcessing, setIsProcessing] = useState(false);
     
     const [profileData, setProfileData] = useState({
         name: '',
@@ -177,12 +178,10 @@ const ProfileSetupScreen: React.FC<{
         setStep(2);
     };
 
-    const handleFinalSubmit = async (e: React.FormEvent) => {
+    const handleFinalSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (isProcessing) return;
-        setIsProcessing(true);
-        await onSetupComplete(profileData, petData);
-        // isProcessing will be set to false by the parent component's logic
+        onSetupComplete(profileData, petData);
     };
 
     if (isProcessing) {
@@ -262,7 +261,14 @@ const ProfileSetupScreen: React.FC<{
                     </select>
                 </div>
             </div>
-            <button type="submit" className="w-full bg-gradient-to-r from-[#FF6464] to-red-400 text-white font-bold py-3 px-6 rounded-xl text-lg hover:opacity-90 transition-opacity transform hover:scale-105 shadow-lg">Finish Setup</button>
+             {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-lg text-center">
+                    <strong>Setup Failed:</strong> {error}
+                </div>
+            )}
+            <button type="submit" disabled={isProcessing} className="w-full bg-gradient-to-r from-[#FF6464] to-red-400 text-white font-bold py-3 px-6 rounded-xl text-lg hover:opacity-90 transition-opacity transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-wait">
+                {isProcessing ? 'Saving...' : 'Finish Setup'}
+            </button>
             <button type="button" onClick={() => setStep(1)} className="w-full text-center text-gray-600 mt-2 hover:underline text-sm">Go Back</button>
         </form>
     );
@@ -358,6 +364,9 @@ const App: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<DBChatMessage[]>([]);
   const [isAiTyping, setIsAiTyping] = useState(false);
   
+  const [isProcessingSetup, setIsProcessingSetup] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
+
   const imageCaptureRef = useRef<HTMLInputElement>(null);
   const userProfileRef = useRef(userProfile);
   userProfileRef.current = userProfile;
@@ -440,20 +449,29 @@ const App: React.FC = () => {
     petData: Omit<Pet, 'id' | 'auth_user_id' | 'notes'>
   ) => {
     if (!session) return;
+    setIsProcessingSetup(true);
+    setSetupError(null);
     isCreatingProfile.current = true;
 
     try {
-        const newProfile = {
+        const newProfile: UserProfile = {
             auth_user_id: session.user.id,
             email: session.user.email!,
             ...profileData
         };
         const { error: profileError } = await supabase.from('profiles').insert(newProfile);
         if (profileError) {
-            console.error("Error creating profile:", profileError);
-            // Handle error (e.g., show a message to the user)
-            return;
+            console.error("Supabase profile error:", profileError);
+            let userMessage = "Could not save your profile. Please try again.";
+            if (profileError.message.includes("violates row-level security policy")) {
+                userMessage = "Database security policy is preventing profile creation. Please check your Supabase RLS settings.";
+            } else if (profileError.message.includes("duplicate key value violates unique constraint")) {
+                userMessage = "A profile for this user already exists.";
+            }
+            throw new Error(userMessage);
         }
+        
+        // Optimistically update UI
         setUserProfile(newProfile);
 
         const newPet = {
@@ -462,17 +480,24 @@ const App: React.FC = () => {
         };
         const { error: petError } = await supabase.from('pets').insert(newPet);
         if (petError) {
-            console.error("Error creating pet:", petError);
-            // Handle error
-            return;
+             console.error("Supabase pet error:", petError);
+             // Rollback profile creation or handle cleanup if necessary
+            let userMessage = "Could not save your pet's details. Please try again.";
+            if (petError.message.includes("violates row-level security policy")) {
+                userMessage = "Database security policy is preventing pet creation. Please check your Supabase RLS settings.";
+            }
+            throw new Error(userMessage);
         }
 
         // Refetch pets to get the one with the new ID
         const { data: petsData } = await supabase.from('pets').select('*').eq('auth_user_id', session.user.id);
         setPets(petsData || []);
-    } catch (error) {
-        console.error("Error during profile setup:", error);
+
+    } catch (error: any) {
+        setSetupError(error.message || "An unexpected error occurred.");
+        setUserProfile(null); // Rollback optimistic update on error
     } finally {
+        setIsProcessingSetup(false);
         isCreatingProfile.current = false;
     }
   };
@@ -608,7 +633,12 @@ const App: React.FC = () => {
   }
 
   if (!userProfile) {
-    return <ProfileSetupScreen user={session.user} onSetupComplete={handleProfileSetupComplete} />;
+    return <ProfileSetupScreen 
+        user={session.user} 
+        onSetupComplete={handleProfileSetupComplete} 
+        isProcessing={isProcessingSetup}
+        error={setupError}
+    />;
   }
   
   const currentPet = pets.length > 0 ? pets[0] : null;

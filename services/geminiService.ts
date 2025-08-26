@@ -2,7 +2,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { HealthCheckResult, GeminiChatMessage } from '../types';
 import type { Chat } from "@google/genai";
 
-const ai = process.env.VITE_API_KEY ? new GoogleGenAI({ apiKey: process.env.VITE_API_KEY }) : null;
+const apiKey = import.meta.env.VITE_API_KEY;
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 let chat: Chat | null = null;
 
 const fileToGenerativePart = (base64Data: string, mimeType: string) => {

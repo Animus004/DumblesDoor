@@ -361,7 +361,7 @@ const App: React.FC = () => {
 
   // Check for all required environment variables.
   const requiredKeys = ['VITE_API_KEY', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
-  const missingKeys = requiredKeys.filter(key => !(process.env as any)[key]);
+  const missingKeys = requiredKeys.filter(key => !import.meta.env[key]);
 
   useEffect(() => {
     // If keys are missing, don't proceed with auth setup.

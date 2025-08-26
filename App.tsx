@@ -1,3 +1,4 @@
+
 // Trigger Vercel deployment
 import React, { useState, useEffect, useRef } from 'react';
 import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Vet, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile } from './types';
@@ -12,6 +13,7 @@ import Header from './components/Header';
 import HealthCheckScreen from './components/HealthCheckScreen';
 import PetBookScreen from './components/PetBookScreen';
 import ShopScreen from './components/ShopScreen';
+import ProfileScreen from './components/ProfileScreen';
 import { marked } from 'marked';
 
 type ActiveScreen = 'home' | 'book' | 'essentials' | 'vet' | 'profile' | 'health' | 'environmentVariables';
@@ -216,6 +218,35 @@ const App: React.FC = () => {
     const [healthCheckResult, setHealthCheckResult] = useState<HealthCheckResult | null>(null);
     const [healthCheckError, setHealthCheckError] = useState<string | null>(null);
 
+    const fetchDataForCurrentUser = async () => {
+        const currentUser = session?.user;
+        if (!currentUser) return;
+
+        const { data: profileData, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('auth_user_id', currentUser.id)
+            .single();
+            
+        if (profileData) setProfile(profileData);
+        if (profileError) console.error("Profile fetch error:", profileError.message);
+
+        const { data: petData, error: petError } = await supabase
+            .from('pets')
+            .select('*')
+            .eq('auth_user_id', currentUser.id)
+            .limit(1)
+            .single();
+
+        if (petData) {
+            setPet(petData);
+        } else {
+            setPet(null); // Explicitly set to null if no pet found
+        }
+        if (petError && petError.code !== 'PGRST116') console.error("Pet fetch error:", petError.message);
+    };
+
+
     useEffect(() => {
         const requiredKeys = ['VITE_API_KEY', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
         const missing = requiredKeys.filter(key => !import.meta.env[key]);
@@ -248,33 +279,14 @@ const App: React.FC = () => {
     }, []);
     
     useEffect(() => {
-        const fetchData = async (userId: string) => {
+        const fetchData = async () => {
             setLoading(true);
-            
-            const { data: profileData, error: profileError } = await supabase
-                .from('user_profiles')
-                .select('*')
-                .eq('auth_user_id', userId)
-                .single();
-                
-            if (profileData) setProfile(profileData);
-            if (profileError) console.error("Profile fetch error:", profileError.message);
-
-            const { data: petData, error: petError } = await supabase
-                .from('pets')
-                .select('*')
-                .eq('auth_user_id', userId)
-                .limit(1)
-                .single();
-
-            if (petData) setPet(petData);
-            if (petError) console.error("Pet fetch error:", petError.message);
-
+            await fetchDataForCurrentUser();
             setLoading(false);
         };
 
         if (user && !isEmailUnverified) {
-            fetchData(user.id);
+            fetchData();
         } else {
             setProfile(null);
             setPet(null);
@@ -287,6 +299,17 @@ const App: React.FC = () => {
             setHealthCheckError(null);
         }
         setActiveScreen(screen);
+    };
+
+     const handleLogout = async () => {
+        setLoading(true);
+        await supabase.auth.signOut();
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setPet(null);
+        setActiveScreen('home'); // Listener will redirect to AuthScreen
+        setLoading(false);
     };
     
     const handleAnalyzePet = async (imageFile: File, notes: string) => {
@@ -354,7 +377,16 @@ const App: React.FC = () => {
                 {activeScreen === 'essentials' && <ShopScreen onBack={() => handleNavigation('home')} />}
                 
                 {activeScreen === 'vet' && <PlaceholderScreen title="Vet Booking" icon={ICONS.VET_BOOKING} message="This feature is under development. You'll soon be able to find and book appointments with top-rated veterinarians in your city." onBack={() => handleNavigation('home')} />}
-                {activeScreen === 'profile' && <PlaceholderScreen title="User Profile" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg>} message="Manage your profile, pet details, and app settings here. This section is coming soon!" onBack={() => handleNavigation('home')} />}
+                {activeScreen === 'profile' && 
+                    <ProfileScreen 
+                        user={user}
+                        profile={profile}
+                        pet={pet}
+                        onBack={() => handleNavigation('home')}
+                        onLogout={handleLogout}
+                        onDataUpdate={fetchDataForCurrentUser}
+                    />
+                }
             </div>
         </div>
     );

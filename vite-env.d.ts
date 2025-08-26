@@ -13,3 +13,9 @@ declare global {
     readonly env: ImportMetaEnv;
   }
 }
+
+// FIX: Add an empty export to treat this file as a module.
+// This is necessary for the `declare global` block to augment the global scope correctly.
+// Resolves TS2669: "Augmentations for the global scope can only be directly nested in external modules..."
+// and consequently fixes all TS2339 errors related to `import.meta.env` being undefined.
+export {};

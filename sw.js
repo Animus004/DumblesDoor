@@ -1,9 +1,7 @@
-
 const CACHE_NAME = 'dumbles-door-cache-v2';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/index.tsx',
   '/icon-192.png',
   '/icon-512.png',
   'https://esm.sh/react@^19.1.1',

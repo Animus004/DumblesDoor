@@ -1,5 +1,3 @@
-
-
 // Trigger Vercel deployment
 import React, { useState, useEffect, useRef } from 'react';
 // FIX: Imported 'ActiveScreen' from './types' to ensure type consistency across components.
@@ -78,6 +76,10 @@ const AuthScreen: React.FC = () => {
         setLoading(true);
         setError('');
         try {
+            if (!supabase) {
+                throw new Error("Database connection failed. Please ensure environment variables are set correctly.");
+            }
+            
             const authMethod = isLoginView ? supabase.auth.signInWithPassword : supabase.auth.signUp;
 
             const { error } = await authMethod({
@@ -88,8 +90,9 @@ const AuthScreen: React.FC = () => {
             if (error) {
                 setError(error.message);
             }
-        } catch (err) {
-            setError("Failed to contact authentication service. Please try again later.");
+        } catch (err: any) {
+            console.error("Authentication error:", err);
+            setError(err.message || "An unexpected authentication error occurred.");
         } finally {
             setLoading(false);
         }
@@ -108,7 +111,14 @@ const AuthScreen: React.FC = () => {
 
                 <form onSubmit={handleAuth} className="bg-white rounded-2xl shadow-xl p-8 space-y-6">
                     <h2 className="text-2xl font-bold text-center text-gray-700">{isLoginView ? 'Log In' : 'Create Account'}</h2>
-                    {error && <p className="bg-red-100 text-red-700 p-3 rounded-lg text-center">{error}</p>}
+                    {error && (
+                        <div className="bg-red-100 text-red-700 p-3 rounded-lg flex items-center gap-2" role="alert">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-sm text-left">{error}</span>
+                        </div>
+                    )}
                     <div className="space-y-4">
                         <div>
                             <label className="block text-gray-600 font-semibold mb-2" htmlFor="email">Email Address</label>

@@ -1,6 +1,5 @@
 // Trigger Vercel deployment
 import React, { useState, useEffect, useRef } from 'react';
-// FIX: Imported 'ActiveScreen' from './types' to ensure type consistency across components.
 import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Vet, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile, ActiveScreen } from './types';
 import { ICONS } from './constants';
 import * as geminiService from './services/geminiService';
@@ -14,9 +13,9 @@ import ShopScreen from './components/ShopScreen';
 import ProfileScreen from './components/ProfileScreen';
 import HomeScreen from './components/HomeScreen';
 import BottomNav from './components/BottomNav';
+import OnboardingProfileScreen from './components/OnboardingProfileScreen';
+import OnboardingPetScreen from './components/OnboardingPetScreen';
 import { marked } from 'marked';
-
-// FIX: Removed local 'ActiveScreen' type. The imported type is now used, resolving the assignability error.
 
 
 // --- UTILITY & PLACEHOLDER COMPONENTS ---
@@ -25,7 +24,7 @@ const PlaceholderScreen: React.FC<{ title: string; icon: React.ReactNode; messag
     <div className="h-screen flex flex-col">
         <header className="p-4 flex items-center border-b">
             <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             </button>
             <h1 className="text-xl font-bold">{title}</h1>
         </header>
@@ -168,13 +167,16 @@ const AuthScreen: React.FC = () => {
 
 // --- MAIN APP COMPONENT ---
 
+type OnboardingStep = 'profile' | 'pet' | 'complete';
+
 const App: React.FC = () => {
     const [missingKeys, setMissingKeys] = useState<string[]>([]);
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [pet, setPet] = useState<Pet | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [appLoading, setAppLoading] = useState(true);
+    const [onboardingStep, setOnboardingStep] = useState<OnboardingStep | null>(null);
     const [isEmailUnverified, setIsEmailUnverified] = useState(false);
     const [activeScreen, setActiveScreen] = useState<ActiveScreen>('home');
     
@@ -182,32 +184,45 @@ const App: React.FC = () => {
     const [healthCheckResult, setHealthCheckResult] = useState<HealthCheckResult | null>(null);
     const [healthCheckError, setHealthCheckError] = useState<string | null>(null);
 
-    const fetchDataForCurrentUser = async () => {
-        const currentUser = session?.user;
-        if (!currentUser) return;
+    const fetchDataForCurrentUser = async (currentSession: Session | null) => {
+        if (!currentSession?.user) {
+            setProfile(null);
+            setPet(null);
+            setOnboardingStep(null);
+            return;
+        }
 
         const { data: profileData, error: profileError } = await supabase
             .from('user_profiles')
             .select('*')
-            .eq('auth_user_id', currentUser.id)
+            .eq('auth_user_id', currentSession.user.id)
             .single();
-            
-        if (profileData) setProfile(profileData);
-        if (profileError) console.error("Profile fetch error:", profileError.message);
+        
+        if (profileError && profileError.code !== 'PGRST116') console.error("Profile fetch error:", profileError.message);
+        setProfile(profileData);
+
+        if (!profileData) {
+            setOnboardingStep('profile');
+            setAppLoading(false);
+            return;
+        }
 
         const { data: petData, error: petError } = await supabase
             .from('pets')
             .select('*')
-            .eq('auth_user_id', currentUser.id)
+            .eq('auth_user_id', currentSession.user.id)
             .limit(1)
             .single();
 
-        if (petData) {
-            setPet(petData);
-        } else {
-            setPet(null); // Explicitly set to null if no pet found
-        }
         if (petError && petError.code !== 'PGRST116') console.error("Pet fetch error:", petError.message);
+        setPet(petData);
+        
+        if (!petData) {
+            setOnboardingStep('pet');
+        } else {
+            setOnboardingStep('complete');
+        }
+        setAppLoading(false);
     };
 
 
@@ -216,46 +231,45 @@ const App: React.FC = () => {
         const missing = requiredKeys.filter(key => !import.meta.env[key]);
         if (missing.length > 0) {
             setMissingKeys(missing);
-            setLoading(false);
+            setAppLoading(false);
             return;
         }
 
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
             setUser(session?.user ?? null);
-            if (session?.user && session.user.email && !session.user.email_confirmed_at) {
+            if (session?.user?.email && !session.user.email_confirmed_at) {
                 setIsEmailUnverified(true);
+                setAppLoading(false);
+            } else if (session) {
+                fetchDataForCurrentUser(session);
+            } else {
+                setAppLoading(false);
             }
-            setLoading(false);
         });
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
             setUser(session?.user ?? null);
-            if (session?.user && session.user.email && !session.user.email_confirmed_at) {
+            
+            if (session?.user?.email && !session.user.email_confirmed_at) {
                 setIsEmailUnverified(true);
+                setAppLoading(false);
             } else {
                 setIsEmailUnverified(false);
+                if (session) {
+                    fetchDataForCurrentUser(session);
+                } else {
+                    setProfile(null);
+                    setPet(null);
+                    setOnboardingStep(null);
+                    setAppLoading(false);
+                }
             }
         });
 
         return () => subscription.unsubscribe();
     }, []);
-    
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            await fetchDataForCurrentUser();
-            setLoading(false);
-        };
-
-        if (user && !isEmailUnverified) {
-            fetchData();
-        } else {
-            setProfile(null);
-            setPet(null);
-        }
-    }, [user, isEmailUnverified]);
     
     const handleNavigation = (screen: ActiveScreen) => {
         if (screen === 'health') {
@@ -266,14 +280,10 @@ const App: React.FC = () => {
     };
 
      const handleLogout = async () => {
-        setLoading(true);
+        setAppLoading(true);
         await supabase.auth.signOut();
-        setSession(null);
-        setUser(null);
-        setProfile(null);
-        setPet(null);
-        setActiveScreen('home'); // Listener will redirect to AuthScreen
-        setLoading(false);
+        // The onAuthStateChange listener will handle resetting state
+        setActiveScreen('home');
     };
     
     const handleAnalyzePet = async (imageFile: File, notes: string) => {
@@ -311,12 +321,16 @@ const App: React.FC = () => {
             setIsChecking(false);
         }
     };
+    
+    const handleDataUpdate = () => {
+        fetchDataForCurrentUser(session);
+    }
 
     if (missingKeys.length > 0) {
         return <EnvironmentVariablePrompt missingKeys={missingKeys} />;
     }
 
-    if (loading) {
+    if (appLoading) {
         return <LoadingScreen />;
     }
 
@@ -327,6 +341,15 @@ const App: React.FC = () => {
     if (isEmailUnverified && user?.email) {
         return <EmailVerificationScreen email={user.email} />;
     }
+    
+    if (onboardingStep === 'profile' && user) {
+        return <OnboardingProfileScreen user={user} onProfileCreated={handleDataUpdate} />;
+    }
+
+    if (onboardingStep === 'pet' && user && profile) {
+        return <OnboardingPetScreen user={user} onPetAdded={handleDataUpdate} />;
+    }
+
 
     const renderActiveScreen = () => {
         switch (activeScreen) {
@@ -341,7 +364,7 @@ const App: React.FC = () => {
             case 'vet':
                  return <PlaceholderScreen title="Vet Booking" icon={ICONS.VET_BOOKING} message="This feature is under development. You'll soon be able to find and book appointments with top-rated veterinarians in your city." onBack={() => handleNavigation('home')} />;
             case 'profile':
-                return <ProfileScreen user={user} profile={profile} pet={pet} onBack={() => handleNavigation('home')} onLogout={handleLogout} onDataUpdate={fetchDataForCurrentUser} />;
+                return <ProfileScreen user={user} profile={profile} pet={pet} onBack={() => handleNavigation('home')} onLogout={handleLogout} onDataUpdate={handleDataUpdate} />;
             default:
                 return <HomeScreen onNavigate={handleNavigation} pet={pet} profile={profile} />;
         }
@@ -350,9 +373,9 @@ const App: React.FC = () => {
     return (
         <div className="h-screen flex flex-col bg-gray-50">
             <main className="flex-grow overflow-y-auto pb-16">
-                {renderActiveScreen()}
+                {onboardingStep === 'complete' ? renderActiveScreen() : <LoadingScreen message="Finalizing setup..." />}
             </main>
-            <BottomNav activeScreen={activeScreen} onNavigate={handleNavigation} />
+            {onboardingStep === 'complete' && <BottomNav activeScreen={activeScreen} onNavigate={handleNavigation} />}
         </div>
     );
 };

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { Pet, UserProfile } from '../types';
 import ServiceCard from './ServiceCard';
@@ -11,7 +10,7 @@ interface HomeScreenProps {
 
 // Custom SVG Icon to perfectly match the design
 const AiScanIcon: React.FC = () => (
-  <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-16 w-16 md:h-20 md:w-20">
+  <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-16 w-16">
     <path d="M7 3H5a2 2 0 0 0-2 2v2" />
     <path d="M17 3h2a2 2 0 0 1 2 2v2" />
     <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
@@ -36,7 +35,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile }) => 
         <button
           onClick={() => onNavigate('health')}
           disabled={isPetFeatureDisabled}
-          className="bg-pink-500 text-white rounded-3xl shadow-lg w-40 h-40 md:w-48 md:h-48 flex flex-col items-center justify-center space-y-2 transition-transform transform focus:outline-none focus:ring-4 focus:ring-pink-300 disabled:opacity-60 disabled:cursor-not-allowed enabled:hover:scale-105"
+          className="bg-pink-500 text-white rounded-3xl shadow-lg w-44 h-44 flex flex-col items-center justify-center space-y-2 transition-transform transform focus:outline-none focus:ring-4 focus:ring-pink-300 disabled:opacity-60 disabled:cursor-not-allowed enabled:hover:scale-105"
           aria-label="Start AI Health Scan"
         >
           <AiScanIcon />

@@ -1,106 +1,117 @@
 
-
-// FIX: Corrected import statement for React hooks.
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
-// FIX: Corrected typo from AIFebedback to AIFeedback.
-import type { Pet, TimelineEntry, PetbookPost, Appointment, AIFeedback, HealthCheckResult } from '../types';
+import type { Pet, EnrichedPetbookPost } from '../types';
 
 // --- HELPER FUNCTIONS & COMPONENTS ---
 
-// A simple utility to format time since a date
 const formatDistanceToNow = (dateString: string): string => {
     const date = new Date(dateString);
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
     
     let interval = seconds / 31536000;
-    if (interval > 1) return `${Math.floor(interval)} years ago`;
+    if (interval > 1) return `${Math.floor(interval)}y`;
     
     interval = seconds / 2592000;
-    if (interval > 1) return `${Math.floor(interval)} months ago`;
+    if (interval > 1) return `${Math.floor(interval)}mo`;
     
     interval = seconds / 86400;
-    if (interval > 1) return `${Math.floor(interval)} days ago`;
+    if (interval > 1) return `${Math.floor(interval)}d`;
 
     interval = seconds / 3600;
-    if (interval > 1) return `${Math.floor(interval)} hours ago`;
+    if (interval > 1) return `${Math.floor(interval)}h`;
     
     interval = seconds / 60;
-    if (interval > 1) return `${Math.floor(interval)} minutes ago`;
+    if (interval > 1) return `${Math.floor(interval)}m`;
     
-    return "Just now";
+    return "now";
 };
 
-// SVG Icons for different post types
-const PostIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg>;
-const HealthCheckIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" /></svg>;
-const AppointmentIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" /></svg>;
+// --- POST CARD COMPONENT ---
 
-// --- TIMELINE CARD SUB-COMPONENTS ---
+const PostCard: React.FC<{ post: EnrichedPetbookPost }> = ({ post }) => {
+    const [isLiked, setIsLiked] = useState(false);
+    // For demonstration purposes, we'll use a random number for likes and comments.
+    // In a real app, this would come from your database.
+    const [likeCount, setLikeCount] = useState(() => Math.floor(Math.random() * 250));
+    const [showComments, setShowComments] = useState(false);
 
-const TimelineCardHeader: React.FC<{ pet: Pet; timestamp: string; children: React.ReactNode; }> = ({ pet, timestamp, children }) => (
-    <div className="flex items-center p-4">
-        <img src={pet.photo_url} alt={pet.name} className="h-10 w-10 rounded-full object-cover" />
-        <div className="ml-3">
-            <p className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                {children}
-            </p>
-            <p className="text-xs text-gray-500">{formatDistanceToNow(timestamp)}</p>
-        </div>
-    </div>
-);
+    const handleLike = () => {
+        setIsLiked(!isLiked);
+        setLikeCount(isLiked ? likeCount - 1 : likeCount + 1);
+    };
 
-const PostEntry: React.FC<{ post: PetbookPost; pet: Pet }> = ({ post, pet }) => (
-    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <TimelineCardHeader pet={pet} timestamp={post.created_at}>
-            {pet.name} <span className="font-normal text-gray-600">shared a memory</span>
-        </TimelineCardHeader>
-        <p className="px-4 pb-3 text-gray-700 whitespace-pre-wrap">{post.content}</p>
-        {post.image_url && <img src={post.image_url} alt="Pet post" className="w-full h-auto object-cover" />}
-         <div className="p-2 flex items-center space-x-4 border-t border-gray-100">
-            <button className="flex items-center space-x-1 text-gray-500 hover:text-red-500">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-                <span className="text-sm font-medium">Like</span>
-            </button>
-            <button className="flex items-center space-x-1 text-gray-500 hover:text-teal-500">
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                 <span className="text-sm font-medium">Comment</span>
-            </button>
-        </div>
-    </div>
-);
+    const authorName = post.author?.name || 'A pet parent';
+    const petName = post.pet?.name || 'their lovely pet';
+    const petPhoto = post.pet?.photo_url || 'https://i.ibb.co/2vX5vVd/default-pet-avatar.png';
 
-const HealthCheckEntry: React.FC<{ check: AIFeedback; pet: Pet }> = ({ check, pet }) => {
-    const result: HealthCheckResult = JSON.parse(check.ai_response);
     return (
-        <div className="bg-white rounded-xl shadow-sm border-l-4 border-rose-400">
-            <TimelineCardHeader pet={pet} timestamp={check.submitted_at}>
-                <HealthCheckIcon /> {pet.name} <span className="font-normal text-gray-600">completed an AI Health Check</span>
-            </TimelineCardHeader>
-            <div className="px-4 pb-4 space-y-2">
-                <p className="text-sm text-gray-700 italic">"{result.healthAnalysis}"</p>
-                {result.vetRecommendation && <p className="text-xs font-semibold text-red-600 bg-red-50 p-2 rounded-md">Vet visit recommended.</p>}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            {/* Card Header */}
+            <div className="flex items-center p-4">
+                <img src={petPhoto} alt={petName} className="h-10 w-10 rounded-full object-cover" />
+                <div className="ml-3">
+                    <p className="text-sm font-semibold text-gray-800">{petName}</p>
+                    <p className="text-xs text-gray-500">
+                        Posted by {authorName} &middot; {formatDistanceToNow(post.created_at)}
+                    </p>
+                </div>
             </div>
-        </div>
-    );
-};
 
-const AppointmentEntry: React.FC<{ appointment: Appointment; pet: Pet }> = ({ appointment, pet }) => {
-    let details;
-    try {
-        details = JSON.parse(appointment.notes);
-    } catch {
-        details = { consultationType: appointment.notes, dateTime: appointment.created_at };
-    }
-    return (
-        <div className="bg-white rounded-xl shadow-sm border-l-4 border-sky-400">
-            <TimelineCardHeader pet={pet} timestamp={appointment.created_at}>
-                <AppointmentIcon /> {pet.name} <span className="font-normal text-gray-600">has a vet appointment</span>
-            </TimelineCardHeader>
-             <div className="px-4 pb-4">
-                <p className="text-sm text-gray-700">A <span className="font-semibold">{details.consultationType}</span> is scheduled for {new Date(details.dateTime).toLocaleDateString()}.</p>
+            {/* Content */}
+            <p className="px-4 pb-3 text-gray-700 whitespace-pre-wrap">{post.content}</p>
+            {post.image_url && <img src={post.image_url} alt="Pet post" className="w-full h-auto object-cover bg-gray-100" />}
+
+            {/* Social Actions */}
+            <div className="px-4 py-2 flex justify-between items-center border-t border-gray-100">
+                 <div className="flex items-center space-x-4">
+                    <button 
+                        onClick={handleLike} 
+                        className="flex items-center space-x-1 text-gray-500 hover:text-red-500 transition-colors focus:outline-none"
+                        aria-pressed={isLiked}
+                        aria-label={isLiked ? 'Unlike post' : 'Like post'}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${isLiked ? 'text-red-500 fill-current' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 010-6.364z" />
+                        </svg>
+                        <span className="text-sm font-medium">{likeCount}</span>
+                    </button>
+                    <button 
+                        onClick={() => setShowComments(!showComments)} 
+                        className="flex items-center space-x-1 text-gray-500 hover:text-teal-500 transition-colors focus:outline-none"
+                        aria-expanded={showComments}
+                        aria-label="Toggle comments"
+                    >
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                         </svg>
+                         <span className="text-sm font-medium">Comment</span>
+                    </button>
+                </div>
+                 <button 
+                    onClick={() => alert('Share functionality is coming soon!')}
+                    className="text-gray-500 hover:text-teal-500 transition-colors focus:outline-none"
+                    aria-label="Share post"
+                 >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12s-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                    </svg>
+                 </button>
             </div>
+
+            {/* Comment Section */}
+            {showComments && (
+                 <div className="p-4 border-t border-gray-100 bg-gray-50">
+                    <div className="flex items-start space-x-3">
+                        <img src={post.pet?.photo_url} alt="your pet" className="h-8 w-8 rounded-full object-cover" />
+                        <div className="w-full">
+                           <textarea placeholder="Add a comment..." rows={2} className="w-full p-2 border rounded-md text-sm focus:ring-teal-500 focus:border-teal-500"></textarea>
+                           <button className="mt-2 bg-teal-500 text-white text-sm font-bold py-1 px-4 rounded-full hover:bg-teal-600">Post</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -109,7 +120,7 @@ const AppointmentEntry: React.FC<{ appointment: Appointment; pet: Pet }> = ({ ap
 // --- MAIN COMPONENT ---
 
 const PetBookScreen: React.FC<{ onBack: () => void; pet: Pet | null; }> = ({ onBack, pet }) => {
-    const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
+    const [feedPosts, setFeedPosts] = useState<EnrichedPetbookPost[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [newPostContent, setNewPostContent] = useState('');
@@ -118,40 +129,31 @@ const PetBookScreen: React.FC<{ onBack: () => void; pet: Pet | null; }> = ({ onB
     const [isSubmitting, setIsSubmitting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const fetchTimeline = async (petId: string) => {
+    const fetchFeed = async () => {
         setLoading(true);
         setError(null);
         try {
-            const { data: posts, error: postsError } = await supabase.from('petbook_posts').select('*').eq('pet_id', petId).order('created_at', { ascending: false });
+            // Fetch all posts and join related pet and user profile data
+            const { data, error: postsError } = await supabase
+                .from('petbook_posts')
+                .select('*, pet:pets(name, photo_url), author:user_profiles(name)')
+                .order('created_at', { ascending: false });
+                
             if (postsError) throw postsError;
-
-            const { data: checks, error: checksError } = await supabase.from('ai_feedback').select('*').eq('pet_id', petId).eq('status', 'completed').order('submitted_at', { ascending: false });
-            if (checksError) throw checksError;
             
-            const { data: appointments, error: appointmentsError } = await supabase.from('appointments').select('*').eq('pet_id', petId).order('created_at', { ascending: false });
-            if (appointmentsError) throw appointmentsError;
+            setFeedPosts(data as EnrichedPetbookPost[]);
 
-            const mappedPosts: TimelineEntry[] = posts.map(p => ({ id: p.id, timestamp: p.created_at, type: 'post', pet_id: p.pet_id, data: p }));
-            const mappedChecks: TimelineEntry[] = checks.map(c => ({ id: c.id, timestamp: c.submitted_at, type: 'health_check', pet_id: c.pet_id, data: c }));
-            const mappedAppointments: TimelineEntry[] = appointments.map(a => ({ id: a.id, timestamp: a.created_at, type: 'appointment', pet_id: a.pet_id, data: a }));
-
-            const combined = [...mappedPosts, ...mappedChecks, ...mappedAppointments];
-            combined.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-            setTimeline(combined);
         } catch (err) {
-            console.error("Error fetching timeline:", err);
-            setError("Failed to load your pet's timeline. Please try again later.");
+            console.error("Error fetching feed:", err);
+            setError("Failed to load the community feed. Please try again later.");
         } finally {
             setLoading(false);
         }
     };
     
     useEffect(() => {
-        if (pet?.id) {
-            fetchTimeline(pet.id);
-        }
-    }, [pet]);
+        fetchFeed();
+    }, []);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -195,7 +197,7 @@ const PetBookScreen: React.FC<{ onBack: () => void; pet: Pet | null; }> = ({ onB
             setNewPostImage(null);
             setImagePreview(null);
             if(fileInputRef.current) fileInputRef.current.value = "";
-            await fetchTimeline(pet.id);
+            await fetchFeed();
 
         } catch (err: any) {
              console.error("Error submitting post:", err);
@@ -205,93 +207,73 @@ const PetBookScreen: React.FC<{ onBack: () => void; pet: Pet | null; }> = ({ onB
         }
     };
     
-    if (!pet) {
-        return (
-             <div className="min-h-screen flex flex-col bg-gray-50">
-                <header className="p-4 flex items-center border-b bg-white">
-                    <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900" aria-label="Go back">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                    </button>
-                    <h1 className="text-xl font-bold">Pet Book</h1>
-                </header>
-                <main className="flex-grow flex items-center justify-center text-center p-4">
-                    <div>
-                        <p className="text-gray-600">Please add a pet to your profile to start using the Pet Book.</p>
-                    </div>
-                </main>
-            </div>
-        )
-    }
-
     return (
         <div className="min-h-screen flex flex-col bg-gray-100">
             <header className="p-4 flex items-center border-b bg-white sticky top-0 z-10">
                 <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900" aria-label="Go back">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
-                <img src={pet.photo_url} alt={pet.name} className="h-8 w-8 rounded-full mr-3 object-cover" />
-                <h1 className="text-xl font-bold">{pet.name}'s Book</h1>
+                <h1 className="text-xl font-bold">PetBook Community</h1>
             </header>
             
             <main className="flex-grow p-4 space-y-4">
-                <form onSubmit={handlePostSubmit} className="bg-white p-4 rounded-xl shadow-sm">
-                    <div className="flex items-start space-x-3">
-                        <img src={pet.photo_url} alt="pet avatar" className="h-10 w-10 rounded-full object-cover"/>
-                        <textarea
-                            value={newPostContent}
-                            onChange={e => setNewPostContent(e.target.value)}
-                            placeholder={`What's new with ${pet.name}?`}
-                            className="w-full p-2 border-none focus:ring-0 resize-none"
-                            rows={3}
-                            required
-                        />
-                    </div>
-                    {imagePreview && (
-                        <div className="mt-3 pl-12 relative">
-                            <img src={imagePreview} alt="Preview" className="max-h-48 w-auto rounded-lg" />
+                {/* New Post Form */}
+                {pet ? (
+                    <form onSubmit={handlePostSubmit} className="bg-white p-4 rounded-xl shadow-sm">
+                        <div className="flex items-start space-x-3">
+                            <img src={pet.photo_url} alt="pet avatar" className="h-10 w-10 rounded-full object-cover"/>
+                            <textarea
+                                value={newPostContent}
+                                onChange={e => setNewPostContent(e.target.value)}
+                                placeholder={`What's new with ${pet.name}?`}
+                                className="w-full p-2 border-none focus:ring-0 resize-none text-gray-800"
+                                rows={3}
+                                required
+                            />
+                        </div>
+                        {imagePreview && (
+                            <div className="mt-3 pl-12 relative">
+                                <img src={imagePreview} alt="Preview" className="max-h-48 w-auto rounded-lg" />
+                                <button
+                                    type="button"
+                                    onClick={() => { setImagePreview(null); setNewPostImage(null); if(fileInputRef.current) fileInputRef.current.value = ""; }}
+                                    className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1"
+                                    aria-label="Remove image"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                        )}
+                        <div className="flex justify-between items-center mt-3 pl-12">
+                            <input type="file" accept="image/*" onChange={handleImageChange} ref={fileInputRef} className="hidden" id="imageUpload" />
+                            <label htmlFor="imageUpload" className="cursor-pointer text-gray-500 hover:text-teal-600" aria-label="Add image">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                            </label>
                             <button
-                                type="button"
-                                onClick={() => { setImagePreview(null); setNewPostImage(null); if(fileInputRef.current) fileInputRef.current.value = ""; }}
-                                className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1"
-                                aria-label="Remove image"
+                                type="submit"
+                                disabled={isSubmitting || !newPostContent.trim()}
+                                className="bg-teal-500 text-white font-bold py-2 px-6 rounded-full hover:bg-teal-600 transition-colors disabled:opacity-50"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                {isSubmitting ? 'Posting...' : 'Post'}
                             </button>
                         </div>
-                    )}
-                    <div className="flex justify-between items-center mt-3 pl-12">
-                        <input type="file" accept="image/*" onChange={handleImageChange} ref={fileInputRef} className="hidden" id="imageUpload" />
-                        <label htmlFor="imageUpload" className="cursor-pointer text-gray-500 hover:text-teal-600" aria-label="Add image">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        </label>
-                        <button type="submit" disabled={isSubmitting || !newPostContent.trim()} className="bg-teal-500 text-white font-bold py-2 px-6 rounded-full hover:bg-teal-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                            {isSubmitting ? 'Posting...' : 'Post'}
-                        </button>
-                    </div>
-                </form>
-
-                {error && <p className="text-red-500 text-center p-2 bg-red-100 rounded-md">{error}</p>}
-                
-                {loading ? (
-                    <div className="text-center py-8">
-                        <div className="w-8 h-8 border-2 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div>
-                        <p className="text-gray-500 mt-2">Loading timeline...</p>
-                    </div>
-                ) : timeline.length === 0 ? (
-                    <div className="text-center py-8 bg-white rounded-lg shadow-sm">
-                        <p className="text-gray-500">No entries yet. Add your first post!</p>
-                    </div>
+                    </form>
                 ) : (
-                    <div className="space-y-4">
-                        {timeline.map(entry => (
-                            <div key={`${entry.type}-${entry.id}`}>
-                                {entry.type === 'post' && <PostEntry post={entry.data as PetbookPost} pet={pet} />}
-                                {entry.type === 'health_check' && <HealthCheckEntry check={entry.data as AIFeedback} pet={pet} />}
-                                {entry.type === 'appointment' && <AppointmentEntry appointment={entry.data as Appointment} pet={pet} />}
-                            </div>
-                        ))}
+                    <div className="bg-white p-4 rounded-xl shadow-sm text-center">
+                        <p className="text-gray-600">Please add a pet to your profile to start posting!</p>
                     </div>
                 )}
+
+                {/* Feed */}
+                {loading && <div className="text-center p-8"><div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div><p className="mt-2 text-gray-600">Loading feed...</p></div>}
+                {error && <div className="bg-red-50 text-red-700 p-4 rounded-lg text-center">{error}</div>}
+                {!loading && !error && feedPosts.length === 0 && (
+                    <div className="text-center p-8 text-gray-500">
+                        <p className="font-semibold">It's quiet here...</p>
+                        <p>Be the first to share a moment!</p>
+                    </div>
+                )}
+                {!loading && feedPosts.map(post => <PostCard key={post.id} post={post} />)}
             </main>
         </div>
     );

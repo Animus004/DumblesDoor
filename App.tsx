@@ -1,6 +1,7 @@
 // Trigger Vercel deployment
+// FIX: Imported useState, useEffect, and useRef from React to resolve hook-related errors.
 import React, { useState, useEffect, useRef } from 'react';
-import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Vet, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile, ActiveScreen } from './types';
+import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Vet, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile, ActiveScreen, AdoptionListing, AdoptablePet } from './types';
 import { ICONS } from './constants';
 import * as geminiService from './services/geminiService';
 import { supabase } from './services/supabaseClient';
@@ -18,6 +19,199 @@ import OnboardingPetScreen from './components/OnboardingPetScreen';
 import WelcomeScreen from './components/WelcomeScreen';
 import OnboardingCompletionScreen from './components/OnboardingCompletionScreen';
 import { marked } from 'marked';
+
+// --- ADOPTION SCREEN IMPLEMENTATION ---
+
+// This entire section defines the new Adoption feature. It's placed here to avoid creating new files.
+
+const MOCK_ADOPTION_LISTINGS: AdoptionListing[] = [
+  { id: '1', name: 'Buddy', species: 'Dog', breed: 'Indie', age: 'Young', size: 'Medium', gender: 'Male', photos: ['https://i.ibb.co/6rC6hJq/indie-dog-1.jpg'], description: 'A friendly and energetic indie dog looking for a loving home. Loves to play fetch!', good_with: ['Children', 'Dogs'], shelter_id: '1', status: 'Available', created_at: new Date().toISOString(), shelter: { id: '1', name: 'Hope for Paws', city: 'Mumbai', address: '', phone: '', email: '', verified: true, location: {} } },
+  { id: '2', name: 'Luna', species: 'Cat', breed: 'Bombay Cat', age: 'Adult', size: 'Small', gender: 'Female', photos: ['https://i.ibb.co/zntgK4B/bombay-cat-1.jpg'], description: 'A calm and affectionate cat who loves to cuddle. She is litter trained and very clean.', good_with: ['Cats'], shelter_id: '2', status: 'Available', created_at: new Date().toISOString(), shelter: { id: '2', name: 'Cat Haven', city: 'Delhi', address: '', phone: '', email: '', verified: true, location: {} } },
+  { id: '3', name: 'Rocky', species: 'Dog', breed: 'Labrador Retriever', age: 'Baby', size: 'Medium', gender: 'Male', photos: ['https://i.ibb.co/mH4SMN3/lab-puppy-1.jpg'], description: 'An adorable Labrador puppy full of curiosity and playfulness. Needs a family that can keep up with his energy.', good_with: ['Children', 'Dogs', 'Cats'], shelter_id: '1', status: 'Available', created_at: new Date().toISOString(), shelter: { id: '1', name: 'Hope for Paws', city: 'Mumbai', address: '', phone: '', email: '', verified: true, location: {} } },
+  { id: '4', name: 'Misty', species: 'Cat', breed: 'Indian Billie', age: 'Young', size: 'Medium', gender: 'Female', photos: ['https://i.ibb.co/Dtd5zWf/indian-cat-1.jpg'], description: 'A beautiful street cat who was rescued. She is a bit shy at first but very sweet once she trusts you.', good_with: [], shelter_id: '3', status: 'Available', created_at: new Date().toISOString(), shelter: { id: '3', name: 'Second Chance Animals', city: 'Bangalore', address: '', phone: '', email: '', verified: true, location: {} } },
+];
+
+const PetAdoptionCard: React.FC<{ pet: AdoptablePet }> = ({ pet }) => {
+    const [isFavorited, setIsFavorited] = useState(false);
+    return (
+        <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col group">
+            <div className="relative aspect-[4/3]">
+                <img src={pet.photos[0]} alt={pet.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                <button 
+                    onClick={() => setIsFavorited(!isFavorited)}
+                    className="absolute top-2 right-2 bg-white/70 backdrop-blur-sm p-2 rounded-full text-gray-700 hover:text-red-500 transition-colors"
+                    aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+                    aria-pressed={isFavorited}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill={isFavorited ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 010-6.364z" />
+                    </svg>
+                </button>
+            </div>
+            <div className="p-4 flex-grow">
+                <h3 className="text-xl font-bold text-gray-800">{pet.name}</h3>
+                <p className="text-sm text-gray-500">{pet.breed}</p>
+                <div className="flex items-center text-xs text-gray-600 mt-2 space-x-2">
+                    <span>{pet.age}</span>
+                    <span className="text-gray-300">&bull;</span>
+                    <span>{pet.gender}</span>
+                    <span className="text-gray-300">&bull;</span>
+                    <span>{pet.size}</span>
+                </div>
+            </div>
+            <div className="p-4 border-t border-gray-100 flex justify-between items-center text-sm">
+                <p className="font-semibold text-gray-700">{pet.shelter_name}</p>
+                {pet.distance_km && <p className="text-teal-600 font-bold">{pet.distance_km.toFixed(1)} km away</p>}
+            </div>
+        </div>
+    );
+};
+
+const AdoptionScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+    const [listings, setListings] = useState<AdoptablePet[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
+    const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+    const [showFilters, setShowFilters] = useState(false);
+    
+    // Filter states
+    const [species, setSpecies] = useState('All');
+    const [age, setAge] = useState('All');
+    const [size, setSize] = useState('All');
+    const [distance, setDistance] = useState(50);
+
+    // Fetch user location
+    useEffect(() => {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setUserLocation({
+                    lat: position.coords.latitude,
+                    lon: position.coords.longitude
+                });
+            },
+            (geoError) => {
+                console.warn("Geolocation error:", geoError.message);
+                setError("Could not get your location. Please enable location services to find nearby pets. Showing sample data for now.");
+                // Fallback to mock data with a structure that matches AdoptablePet
+                const mockAdoptablePets: AdoptablePet[] = MOCK_ADOPTION_LISTINGS.map(p => ({
+                    ...p,
+                    distance_km: Math.random() * 50,
+                    shelter_name: p.shelter?.name || 'A Loving Shelter'
+                }));
+                setListings(mockAdoptablePets);
+                setLoading(false);
+            }
+        );
+    }, []);
+
+    // Fetch data from Supabase
+    useEffect(() => {
+        const fetchListings = async () => {
+            if (!userLocation) return;
+            if (!supabase) {
+                 setError("Database connection is not available.");
+                 setLoading(false);
+                 return;
+            }
+
+            setLoading(true);
+            setError(null);
+            
+            const { data, error: rpcError } = await supabase.rpc('nearby_pets', {
+                lat: userLocation.lat,
+                long: userLocation.lon,
+                radius_km: distance
+            });
+
+            if (rpcError) {
+                console.error("Error calling nearby_pets RPC:", rpcError);
+                setError("Could not fetch nearby pets. Please try again later.");
+                setListings([]);
+            } else {
+                // Apply client-side filters for species, age, and size
+                const filtered = (data || []).filter((p: AdoptablePet) => {
+                    const speciesMatch = species === 'All' || p.species === species;
+                    const ageMatch = age === 'All' || p.age === age;
+                    const sizeMatch = size === 'All' || p.size === size;
+                    return speciesMatch && ageMatch && sizeMatch;
+                });
+                setListings(filtered);
+            }
+            setLoading(false);
+        };
+        
+        // Only fetch if we have a user location
+        if (userLocation) {
+            fetchListings();
+        }
+    }, [userLocation, species, age, size, distance]);
+
+    return (
+        <div className="min-h-screen flex flex-col bg-gray-50">
+            <header className="p-4 flex items-center border-b bg-white sticky top-0 z-20">
+                <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <h1 className="text-xl font-bold">Find a Friend</h1>
+                <div className="ml-auto flex items-center gap-2">
+                    <button onClick={() => setShowFilters(!showFilters)} className={`p-2 rounded-full transition-colors ${showFilters ? 'bg-teal-100 text-teal-600' : 'bg-gray-100 text-gray-600'}`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 12.414V17a1 1 0 01-1.447.894l-2-1A1 1 0 018 16v-3.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" /></svg>
+                    </button>
+                    {/* View Toggle */}
+                </div>
+            </header>
+
+            {/* Filter Panel */}
+            {showFilters && (
+                <div className="p-4 bg-white border-b sticky top-[65px] z-10">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-medium text-gray-500">Species</label>
+                            <select value={species} onChange={e => setSpecies(e.target.value)} className="w-full mt-1 p-2 border bg-white rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm">
+                                <option>All</option><option>Dog</option><option>Cat</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-gray-500">Age</label>
+                            <select value={age} onChange={e => setAge(e.target.value)} className="w-full mt-1 p-2 border bg-white rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm">
+                                <option>All</option><option>Baby</option><option>Young</option><option>Adult</option><option>Senior</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-gray-500">Size</label>
+                            <select value={size} onChange={e => setSize(e.target.value)} className="w-full mt-1 p-2 border bg-white rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm">
+                                <option>All</option><option>Small</option><option>Medium</option><option>Large</option>
+                            </select>
+                        </div>
+                         <div>
+                            <label className="text-xs font-medium text-gray-500">Distance ({distance} km)</label>
+                            <input type="range" min="5" max="200" step="5" value={distance} onChange={e => setDistance(Number(e.target.value))} className="w-full mt-2 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500" />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <main className="flex-grow p-4">
+                {loading && <div className="text-center p-8"><div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div><p className="mt-2 text-gray-600">Finding pets near you...</p></div>}
+                {error && <div className="bg-yellow-50 text-yellow-700 p-4 rounded-lg text-center">{error}</div>}
+                
+                {!loading && !error && listings.length === 0 && (
+                    <div className="text-center p-8 text-gray-500">
+                        <p className="font-semibold">No pets found</p>
+                        <p>Try adjusting your filters or expanding the distance.</p>
+                    </div>
+                )}
+                
+                {!loading && listings.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {listings.map(pet => <PetAdoptionCard key={pet.id} pet={pet} />)}
+                    </div>
+                )}
+            </main>
+        </div>
+    );
+};
 
 
 // --- UTILITY & PLACEHOLDER COMPONENTS ---
@@ -708,8 +902,10 @@ const App: React.FC = () => {
                 return <PetBookScreen onBack={() => setActiveScreen('home')} pet={pet} />;
             case 'essentials':
                 return <ShopScreen onBack={() => setActiveScreen('home')} />;
+            case 'adoption':
+                return <AdoptionScreen onBack={() => setActiveScreen('home')} />;
             case 'vet':
-                return <PlaceholderScreen title="Vet Booking" icon={ICONS.VET_BOOKING} message="Find and book appointments with trusted veterinarians in your city. This feature is coming soon!" onBack={() => setActiveScreen('home')} />;
+                 return <PlaceholderScreen title="Vet Booking" icon={ICONS.VET_BOOKING} message="Find and book appointments with trusted veterinarians in your city. This feature is coming soon!" onBack={() => setActiveScreen('home')} />;
             case 'profile':
                 return <ProfileScreen user={user} profile={profile} pet={pet} onBack={() => setActiveScreen('home')} onLogout={handleLogout} onDataUpdate={() => user && checkAndSetOnboardingStage(user)} />;
             default:

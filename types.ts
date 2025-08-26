@@ -100,9 +100,62 @@ export interface TimelineEntry {
   data: TimelineEntryData;
 }
 
+// A new type for displaying posts in the social feed, including author and pet details.
+export interface EnrichedPetbookPost extends PetbookPost {
+  pet: {
+    name: string;
+    photo_url: string;
+  } | null;
+  author: {
+    name: string;
+  } | null;
+}
+
+
+// --- ADOPTION PLATFORM TYPES ---
+
+export interface Shelter {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  phone: string;
+  email: string;
+  website?: string;
+  verified: boolean;
+  // For PostGIS geography(Point, 4326) type
+  location: any; // Supabase client might not have a perfect type for this
+}
+
+export interface AdoptionListing {
+  id: string;
+  shelter_id: string;
+  name: string;
+  species: 'Dog' | 'Cat';
+  breed: string;
+  age: 'Baby' | 'Young' | 'Adult' | 'Senior';
+  size: 'Small' | 'Medium' | 'Large' | 'Extra Large';
+  gender: 'Male' | 'Female';
+  photos: string[]; // array of URLs
+  description: string;
+  story?: string;
+  good_with: ('Children' | 'Dogs' | 'Cats')[];
+  special_needs?: string[];
+  status: 'Available' | 'Pending' | 'Adopted';
+  created_at: string;
+  // Joined data for UI display
+  shelter?: Shelter;
+}
+
+// This type represents the data returned by the 'nearby_pets' RPC
+export interface AdoptablePet extends Omit<AdoptionListing, 'shelter'> {
+  distance_km: number;
+  shelter_name: string;
+}
+
 
 export type ActiveModal = 'chat' | null;
-export type ActiveScreen = 'home' | 'book' | 'essentials' | 'vet' | 'profile' | 'health';
+export type ActiveScreen = 'home' | 'book' | 'essentials' | 'vet' | 'profile' | 'health' | 'adoption';
 
 // This type matches the Gemini SDK's expectation for chat history
 export interface GeminiChatMessage {

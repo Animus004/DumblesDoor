@@ -80,16 +80,19 @@ const AuthScreen: React.FC = () => {
                 throw new Error("Database connection failed. Please ensure environment variables are set correctly.");
             }
             
-            const authMethod = isLoginView ? supabase.auth.signInWithPassword : supabase.auth.signUp;
-
-            const { error } = await authMethod({
-                email,
-                password,
-            });
-
-            if (error) {
-                setError(error.message);
+            let response;
+            const credentials = { email, password };
+    
+            if (isLoginView) {
+                response = await supabase.auth.signInWithPassword(credentials);
+            } else {
+                response = await supabase.auth.signUp(credentials);
             }
+    
+            if (response.error) {
+                setError(response.error.message);
+            }
+            // On success, the onAuthStateChange listener will handle the session update
         } catch (err: any) {
             console.error("Authentication error:", err);
             setError(err.message || "An unexpected authentication error occurred.");
@@ -281,22 +284,28 @@ const App: React.FC = () => {
         setIsChecking(true);
         setHealthCheckError(null);
         setHealthCheckResult(null);
-        
+    
         try {
-            const reader = new FileReader();
-            reader.readAsDataURL(imageFile);
-            reader.onloadend = async () => {
-                const base64String = (reader.result as string).split(',')[1];
-                const petContext = {
-                    name: pet.name,
-                    breed: pet.breed,
-                    age: `${new Date().getFullYear() - new Date(pet.birth_date).getFullYear()} years`,
+            const base64String = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(imageFile);
+                reader.onload = () => {
+                    const result = reader.result as string;
+                    resolve(result.split(',')[1]);
                 };
-                const result = await geminiService.analyzePetHealth(base64String, imageFile.type, notes, petContext);
-                setHealthCheckResult(result);
+                reader.onerror = (error) => reject(error);
+            });
+    
+            const petContext = {
+                name: pet.name,
+                breed: pet.breed,
+                age: `${new Date().getFullYear() - new Date(pet.birth_date).getFullYear()} years`,
             };
+            const result = await geminiService.analyzePetHealth(base64String, imageFile.type, notes, petContext);
+            setHealthCheckResult(result);
+    
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during analysis.";
             setHealthCheckError(errorMessage);
         } finally {
             setIsChecking(false);

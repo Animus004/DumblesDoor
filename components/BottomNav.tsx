@@ -12,9 +12,9 @@ interface NavItemProps {
 
 const NavItem: React.FC<NavItemProps> = ({ screen, activeScreen, label, icon, onNavigate }) => {
   const isActive = screen === activeScreen;
-  const color = isActive ? 'text-red-500' : 'text-gray-500';
+  const color = isActive ? 'text-teal-500' : 'text-gray-500';
   return (
-    <button onClick={() => onNavigate(screen)} className={`flex flex-col items-center justify-center flex-1 space-y-1 focus:outline-none transition-colors ${color} hover:text-red-400`}>
+    <button onClick={() => onNavigate(screen)} className={`flex flex-col items-center justify-center flex-1 space-y-1 focus:outline-none transition-colors ${color} hover:text-teal-400`}>
       {icon}
       <span className={`text-xs ${isActive ? 'font-bold' : 'font-medium'}`}>{label}</span>
     </button>

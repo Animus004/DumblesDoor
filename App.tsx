@@ -77,17 +77,22 @@ const AuthScreen: React.FC = () => {
         e.preventDefault();
         setLoading(true);
         setError('');
-        const authMethod = isLoginView ? supabase.auth.signInWithPassword : supabase.auth.signUp;
+        try {
+            const authMethod = isLoginView ? supabase.auth.signInWithPassword : supabase.auth.signUp;
 
-        const { error } = await authMethod({
-            email,
-            password,
-        });
+            const { error } = await authMethod({
+                email,
+                password,
+            });
 
-        if (error) {
-            setError(error.message);
+            if (error) {
+                setError(error.message);
+            }
+        } catch (err) {
+            setError("Failed to contact authentication service. Please try again later.");
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     return (

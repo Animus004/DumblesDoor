@@ -24,6 +24,7 @@ const AiScanIcon: React.FC = () => (
 const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile }) => {
   const isVetDisabled = true; 
   const isEncyclopediaDisabled = true;
+  const isPetFeatureDisabled = !pet;
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -34,7 +35,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile }) => 
       <section className="flex flex-col items-center space-y-4">
         <button
           onClick={() => onNavigate('health')}
-          className="bg-pink-500 text-white rounded-3xl shadow-lg w-40 h-40 md:w-48 md:h-48 flex flex-col items-center justify-center space-y-2 transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-pink-300"
+          disabled={isPetFeatureDisabled}
+          className="bg-pink-500 text-white rounded-3xl shadow-lg w-40 h-40 md:w-48 md:h-48 flex flex-col items-center justify-center space-y-2 transition-transform transform focus:outline-none focus:ring-4 focus:ring-pink-300 disabled:opacity-60 disabled:cursor-not-allowed enabled:hover:scale-105"
           aria-label="Start AI Health Scan"
         >
           <AiScanIcon />
@@ -50,7 +52,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile }) => 
           </button>
           <button
             onClick={() => onNavigate('book')}
-            className="bg-gray-100/70 border border-gray-200/80 rounded-lg px-6 py-2 text-gray-700 font-medium hover:bg-gray-200 transition-colors"
+            disabled={isPetFeatureDisabled}
+            className="bg-gray-100/70 border border-gray-200/80 rounded-lg px-6 py-2 text-gray-700 font-medium hover:bg-gray-200 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Pet Book
           </button>
@@ -67,6 +70,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile }) => 
             icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
             onClick={() => onNavigate('health')}
             iconBgColor="bg-red-100"
+            disabled={isPetFeatureDisabled}
           />
           <ServiceCard
             title="Book a Vet"

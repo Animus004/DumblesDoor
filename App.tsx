@@ -360,6 +360,7 @@ const App: React.FC = () => {
   const imageCaptureRef = useRef<HTMLInputElement>(null);
   const userProfileRef = useRef(userProfile);
   userProfileRef.current = userProfile;
+  const isCreatingProfile = useRef(false);
 
   // Check for all required environment variables.
   const requiredKeys = ['VITE_API_KEY', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
@@ -386,7 +387,7 @@ const App: React.FC = () => {
             // Check ref to see if profile was just created client-side.
             // If so, don't re-fetch and risk a race condition with the DB.
             const profileExistsInState = userProfileRef.current?.auth_user_id === session.user.id;
-            if (!profileExistsInState) {
+            if (!profileExistsInState && !isCreatingProfile.current) {
                 fetchInitialData(session.user.id);
             }
         }
@@ -434,38 +435,45 @@ const App: React.FC = () => {
   };
   
   const handleProfileSetupComplete = async (
-      profileData: Omit<UserProfile, 'auth_user_id' | 'email'>, 
-      petData: Omit<Pet, 'id' | 'auth_user_id' | 'notes'>
+    profileData: Omit<UserProfile, 'auth_user_id' | 'email'>,
+    petData: Omit<Pet, 'id' | 'auth_user_id' | 'notes'>
   ) => {
-      if (!session) return;
-      
-      const newProfile = {
-          auth_user_id: session.user.id,
-          email: session.user.email!,
-          ...profileData
-      };
-      const { error: profileError } = await supabase.from('profiles').insert(newProfile);
-      if (profileError) {
-          console.error("Error creating profile:", profileError);
-          // Handle error (e.g., show a message to the user)
-          return;
-      }
-      setUserProfile(newProfile);
+    if (!session) return;
+    isCreatingProfile.current = true;
 
-      const newPet = {
-          auth_user_id: session.user.id,
-          ...petData
-      };
-      const { error: petError } = await supabase.from('pets').insert(newPet);
-      if (petError) {
-          console.error("Error creating pet:", petError);
-          // Handle error
-          return;
-      }
+    try {
+        const newProfile = {
+            auth_user_id: session.user.id,
+            email: session.user.email!,
+            ...profileData
+        };
+        const { error: profileError } = await supabase.from('profiles').insert(newProfile);
+        if (profileError) {
+            console.error("Error creating profile:", profileError);
+            // Handle error (e.g., show a message to the user)
+            return;
+        }
+        setUserProfile(newProfile);
 
-      // Refetch pets to get the one with the new ID
-      const { data: petsData } = await supabase.from('pets').select('*').eq('auth_user_id', session.user.id);
-      setPets(petsData || []);
+        const newPet = {
+            auth_user_id: session.user.id,
+            ...petData
+        };
+        const { error: petError } = await supabase.from('pets').insert(newPet);
+        if (petError) {
+            console.error("Error creating pet:", petError);
+            // Handle error
+            return;
+        }
+
+        // Refetch pets to get the one with the new ID
+        const { data: petsData } = await supabase.from('pets').select('*').eq('auth_user_id', session.user.id);
+        setPets(petsData || []);
+    } catch (error) {
+        console.error("Error during profile setup:", error);
+    } finally {
+        isCreatingProfile.current = false;
+    }
   };
 
   const handleLogout = async () => {

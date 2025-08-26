@@ -1,22 +1,24 @@
 
+
 // Trigger Vercel deployment
 import React, { useState, useEffect, useRef } from 'react';
-import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Vet, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile } from './types';
+// FIX: Imported 'ActiveScreen' from './types' to ensure type consistency across components.
+import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Vet, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile, ActiveScreen } from './types';
 import { ICONS } from './constants';
 import * as geminiService from './services/geminiService';
 import { supabase } from './services/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
 
-import FeatureCard from './components/FeatureCard';
 import EnvironmentVariablePrompt from './components/ApiKeyPrompt';
-import Header from './components/Header';
 import HealthCheckScreen from './components/HealthCheckScreen';
 import PetBookScreen from './components/PetBookScreen';
 import ShopScreen from './components/ShopScreen';
 import ProfileScreen from './components/ProfileScreen';
+import HomeScreen from './components/HomeScreen';
+import BottomNav from './components/BottomNav';
 import { marked } from 'marked';
 
-type ActiveScreen = 'home' | 'book' | 'essentials' | 'vet' | 'profile' | 'health' | 'environmentVariables';
+// FIX: Removed local 'ActiveScreen' type. The imported type is now used, resolving the assignability error.
 
 
 // --- UTILITY & PLACEHOLDER COMPONENTS ---
@@ -143,62 +145,6 @@ const AuthScreen: React.FC = () => {
             </div>
         </div>
     );
-};
-
-// --- HOME SCREEN COMPONENT ---
-
-interface HomeScreenProps {
-  onNavigate: (screen: ActiveScreen) => void;
-  pet: Pet | null;
-}
-
-const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet }) => {
-  const greeting = pet ? `What's on your mind for ${pet.name}?` : "How can we help your pet today?";
-  
-  return (
-    <div className="flex-grow p-4 md:p-6 space-y-6 bg-gray-50">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-800">Hello!</h2>
-        <p className="text-gray-600">{greeting}</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 md:gap-6">
-        <FeatureCard
-          title="AI Health Check"
-          description="Scan a photo for a quick wellness overview."
-          icon={ICONS.HEALTH_CHECK}
-          color="bg-rose-100"
-          textColor="text-rose-800"
-          onClick={() => onNavigate('health')}
-        />
-        <FeatureCard
-          title="Vet Booking"
-          description="Find and book verified vets near you."
-          icon={ICONS.VET_BOOKING}
-          color="bg-sky-100"
-          textColor="text-sky-800"
-          onClick={() => onNavigate('vet')}
-          disabled={true}
-        />
-        <FeatureCard
-          title="Pet Essentials"
-          description="Shop for curated food, toys, and supplies."
-          icon={ICONS.PET_ESSENTIALS}
-          color="bg-amber-100"
-          textColor="text-amber-800"
-          onClick={() => onNavigate('essentials')}
-        />
-        <FeatureCard
-          title="Pet Book"
-          description="A digital diary of your pet's life and milestones."
-          icon={ICONS.PET_BOOK}
-          color="bg-indigo-100"
-          textColor="text-indigo-800"
-          onClick={() => onNavigate('book')}
-        />
-      </div>
-    </div>
-  );
 };
 
 
@@ -358,36 +304,31 @@ const App: React.FC = () => {
         return <EmailVerificationScreen email={user.email} />;
     }
 
+    const renderActiveScreen = () => {
+        switch (activeScreen) {
+            case 'home':
+                return <HomeScreen onNavigate={handleNavigation} pet={pet} profile={profile} />;
+            case 'health':
+                return <HealthCheckScreen pet={pet} onBack={() => handleNavigation('home')} onAnalyze={handleAnalyzePet} isChecking={isChecking} result={healthCheckResult} error={healthCheckError} />;
+            case 'book':
+                return <PetBookScreen onBack={() => handleNavigation('home')} pet={pet} />;
+            case 'essentials':
+                return <ShopScreen onBack={() => handleNavigation('home')} />;
+            case 'vet':
+                 return <PlaceholderScreen title="Vet Booking" icon={ICONS.VET_BOOKING} message="This feature is under development. You'll soon be able to find and book appointments with top-rated veterinarians in your city." onBack={() => handleNavigation('home')} />;
+            case 'profile':
+                return <ProfileScreen user={user} profile={profile} pet={pet} onBack={() => handleNavigation('home')} onLogout={handleLogout} onDataUpdate={fetchDataForCurrentUser} />;
+            default:
+                return <HomeScreen onNavigate={handleNavigation} pet={pet} profile={profile} />;
+        }
+    }
+
     return (
-        <div className="h-screen flex flex-col">
-            <Header onProfileClick={() => handleNavigation('profile')} />
-            <div className="flex-grow overflow-y-auto">
-                {activeScreen === 'home' && <HomeScreen onNavigate={handleNavigation} pet={pet} />}
-                {activeScreen === 'health' && (
-                    <HealthCheckScreen
-                        pet={pet}
-                        onBack={() => handleNavigation('home')}
-                        onAnalyze={handleAnalyzePet}
-                        isChecking={isChecking}
-                        result={healthCheckResult}
-                        error={healthCheckError}
-                    />
-                )}
-                {activeScreen === 'book' && <PetBookScreen onBack={() => handleNavigation('home')} pet={pet} />}
-                {activeScreen === 'essentials' && <ShopScreen onBack={() => handleNavigation('home')} />}
-                
-                {activeScreen === 'vet' && <PlaceholderScreen title="Vet Booking" icon={ICONS.VET_BOOKING} message="This feature is under development. You'll soon be able to find and book appointments with top-rated veterinarians in your city." onBack={() => handleNavigation('home')} />}
-                {activeScreen === 'profile' && 
-                    <ProfileScreen 
-                        user={user}
-                        profile={profile}
-                        pet={pet}
-                        onBack={() => handleNavigation('home')}
-                        onLogout={handleLogout}
-                        onDataUpdate={fetchDataForCurrentUser}
-                    />
-                }
-            </div>
+        <div className="h-screen flex flex-col bg-gray-50">
+            <main className="flex-grow overflow-y-auto pb-16">
+                {renderActiveScreen()}
+            </main>
+            <BottomNav activeScreen={activeScreen} onNavigate={handleNavigation} />
         </div>
     );
 };

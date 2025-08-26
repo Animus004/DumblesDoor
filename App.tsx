@@ -1195,135 +1195,129 @@ const AuthScreen: React.FC = () => {
     };
     
     // --- ICONS ---
-    const GoogleIcon = () => (<svg className="w-5 h-5" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" /><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z" /><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.222 0-9.618-3.226-11.283-7.582l-6.522 5.025C9.505 39.556 16.227 44 24 44z" /><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" /></svg>);
-    const SpinnerIcon = () => (<svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>);
-    const EyeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.522 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.022 7-9.542 7-4.478 0-8.268-2.943-9.542 7z" /></svg>);
-    const EyeOffIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7 1.274 4.057 5.022 7 9.542 7 .847 0 1.668.125 2.454.354M7.5 7.5A4.5 4.5 0 0112 3a4.5 4.5 0 014.5 4.5m-9 9a4.5 4.5 0 004.5 4.5 4.5 4.5 0 004.5-4.5M3 3l18 18" /></svg>);
-    const CheckCircleIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>;
-    const ExclamationCircleIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>;
+    const GoogleIcon = () => (<svg className="w-5 h-5" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" /><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z" /><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.222 0-9.522-3.512-11.01-8.24l-6.522 5.022C9.493 39.562 16.227 44 24 44z" /><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-0.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C41.382 36.661 44 31.134 44 24c0-1.341-.138-2.65-.389-3.917z" /></svg>);
 
-    // --- SUB-COMPONENTS ---
-    const PasswordRequirement: React.FC<{ valid: boolean; text: string }> = ({ valid, text }) => (
-        <div className={`flex items-center text-xs ${valid ? 'text-green-600' : 'text-gray-500'}`}>
-            {valid ? <CheckCircleIcon /> : <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="9" strokeWidth="1.5" /></svg>}
-            <span className="ml-1">{text}</span>
-        </div>
-    );
-    
-    const allPasswordReqsMet = Object.values(passwordValidation).every(Boolean);
-    const isFormValid = isLoginView ? (email.length > 0 && password.length > 0) : (emailValidation.isValid === true && allPasswordReqsMet);
-
-
+    // Main component render logic
     if (signupSuccess) {
-        return <SignupSuccessScreen email={email} onGoToLogin={() => { setSignupSuccess(false); setIsLoginView(true); setPassword(''); }} />;
+      return <SignupSuccessScreen email={email} onGoToLogin={() => { setSignupSuccess(false); setIsLoginView(true); }} />;
+    }
+     if (error === 'Email not confirmed. Check your inbox for the verification link.') {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-teal-50 to-cyan-100 flex items-center justify-center p-4">
+                <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4 text-center">
+                    <div className="text-5xl">📧</div>
+                    <h1 className="text-3xl font-bold text-gray-800">Check Your Email</h1>
+                    <p className="text-gray-600">
+                        We sent a verification link to <strong className="text-gray-900">{email}</strong>. Please click the link to activate your account.
+                    </p>
+                    {message && <p className="text-green-600 bg-green-50 p-2 rounded-md">{message}</p>}
+                    <button
+                      onClick={handleResendVerification}
+                      disabled={loading}
+                      className="w-full bg-teal-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-teal-600 disabled:opacity-50"
+                    >
+                      {loading ? 'Sending...' : 'Resend Verification Link'}
+                    </button>
+                     <button
+                        onClick={() => { setError(''); setMessage(''); }}
+                        className="text-sm font-semibold text-gray-500 hover:text-gray-800"
+                    >
+                        Back to Login
+                    </button>
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-teal-100 to-cyan-200 flex items-center justify-center p-4">
-            <div className="w-full max-w-md">
+        <div className="min-h-screen bg-gradient-to-br from-teal-50 to-cyan-100 flex items-center justify-center p-4">
+            <div className="w-full max-w-sm">
                 <div className="text-center mb-8">
-                     <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-teal-600 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3.5a1.5 1.5 0 013 0V4a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3h.5a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-.5a1.5 1.5 0 00-3 0v.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-3a1 1 0 00-1-1h-.5a1.5 1.5 0 010-3H4a1 1 0 001-1V6a1 1 0 011-1h3a1 1 0 001-1v-.5z" /></svg>
-                    <h1 className="text-4xl font-bold text-gray-800 mt-2">Welcome to Dumble's Door</h1>
-                    <p className="text-gray-600">Your pet's best friend is just a click away.</p>
+                    <h1 className="text-4xl font-bold text-gray-800">Dumble's Door</h1>
+                    <p className="text-gray-600 mt-2">{isLoginView ? 'Welcome back to the family!' : 'Join our pet-loving community'}</p>
                 </div>
-
-                <div className="bg-white rounded-2xl shadow-xl p-8 space-y-6">
-                    <h2 className="text-2xl font-bold text-center text-gray-700">{isLoginView ? 'Log In' : 'Create Account'}</h2>
-                    <div className="space-y-3">
-                        <button type="button" onClick={() => handleSocialLogin('google')} className="w-full flex items-center justify-center gap-3 py-2.5 px-4 border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors">
-                            <GoogleIcon />
-                            <span className="text-sm font-medium text-gray-700">Continue with Google</span>
+                <div className="bg-white rounded-2xl shadow-xl p-8">
+                    <div className="flex mb-6 border-b">
+                        <button
+                            onClick={() => setIsLoginView(true)}
+                            className={`w-1/2 pb-3 font-semibold text-center transition-colors ${isLoginView ? 'text-teal-500 border-b-2 border-teal-500' : 'text-gray-500'}`}
+                        >
+                            Login
                         </button>
-                    </div>
-                    <div className="flex items-center">
-                        <hr className="flex-grow border-gray-200" />
-                        <span className="mx-4 text-sm font-medium text-gray-400">OR</span>
-                        <hr className="flex-grow border-gray-200" />
+                        <button
+                            onClick={() => setIsLoginView(false)}
+                            className={`w-1/2 pb-3 font-semibold text-center transition-colors ${!isLoginView ? 'text-teal-500 border-b-2 border-teal-500' : 'text-gray-500'}`}
+                        >
+                            Sign Up
+                        </button>
                     </div>
 
                     <form onSubmit={handleEmailAuth} className="space-y-4">
-                        <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email Address</label>
-                            <div className="relative mt-1">
-                                <input
-                                    ref={emailInputRef}
-                                    id="email"
-                                    name="email"
-                                    type="email"
-                                    autoComplete="email"
-                                    required
-                                    value={email}
-                                    onChange={handleEmailChange}
-                                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${emailValidation.isValid === false ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-teal-500'}`}
-                                />
-                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                                    {emailValidation.isValid === true && <CheckCircleIcon />}
-                                    {emailValidation.isValid === false && <ExclamationCircleIcon />}
-                                </div>
-                            </div>
-                            {emailValidation.isValid === false && <p className="mt-1 text-xs text-red-600">{emailValidation.message}</p>}
-                        </div>
+                        {error && <p className="text-red-500 text-xs text-center bg-red-50 p-2 rounded-md">{error}</p>}
+                        {message && <p className="text-green-600 text-xs text-center bg-green-50 p-2 rounded-md">{message}</p>}
 
                         <div>
-                            <label htmlFor="password"
-                                className="block text-sm font-medium text-gray-700">Password</label>
-                            <div className="relative mt-1">
-                                <input
-                                    id="password"
-                                    name="password"
-                                    type={passwordVisible ? 'text' : 'password'}
-                                    autoComplete={isLoginView ? "current-password" : "new-password"}
-                                    required
-                                    value={password}
-                                    onChange={handlePasswordChange}
-                                    className="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                />
-                                <button type="button" onClick={() => setPasswordVisible(!passwordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600" aria-label="Toggle password visibility">
-                                    {passwordVisible ? <EyeOffIcon /> : <EyeIcon />}
-                                </button>
-                            </div>
+                            <input
+                                ref={emailInputRef}
+                                type="email"
+                                placeholder="Email Address"
+                                value={email}
+                                onChange={handleEmailChange}
+                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${emailValidation.isValid === false ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-teal-500'}`}
+                                required
+                            />
+                            {emailValidation.isValid === false && <p className="text-red-500 text-xs mt-1">{emailValidation.message}</p>}
                         </div>
-
-                        {!isLoginView && (
-                            <div className="pt-2">
-                                <p className="text-sm font-semibold text-gray-600 mb-2">Password must contain:</p>
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                                    <PasswordRequirement valid={passwordValidation.length} text="8+ characters" />
-                                    <PasswordRequirement valid={passwordValidation.uppercase} text="One uppercase" />
-                                    <PasswordRequirement valid={passwordValidation.number} text="One number" />
-                                    <PasswordRequirement valid={passwordValidation.specialChar} text="One special char" />
-                                </div>
-                            </div>
-                        )}
+                        <div className="relative">
+                            <input
+                                type={passwordVisible ? 'text' : 'password'}
+                                placeholder="Password"
+                                value={password}
+                                onChange={handlePasswordChange}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                required
+                            />
+                             <button
+                                type="button"
+                                onClick={() => setPasswordVisible(!passwordVisible)}
+                                className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400"
+                                aria-label={passwordVisible ? 'Hide password' : 'Show password'}
+                            >
+                                {passwordVisible ? 
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg> :
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zM10 12a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /><path d="M10 17a9.953 9.953 0 01-4.512-1.074l-1.781 1.781a1 1 0 11-1.414-1.414l14-14a1 1 0 111.414 1.414l-1.473 1.473A10.014 10.014 0 01.458 10C1.732 14.057 5.522 17 10 17z" /></svg>
+                                }
+                            </button>
+                        </div>
                         
-                        {error && (
-                            <div className="text-red-600 bg-red-50 p-3 rounded-lg text-sm text-center">
-                                <p>{error}</p>
-                                {error.includes('Email not confirmed') && (
-                                    <button type="button" onClick={handleResendVerification} disabled={loading} className="mt-2 font-bold underline hover:text-red-700 disabled:opacity-50">
-                                        {loading ? 'Sending...' : 'Resend Verification'}
-                                    </button>
-                                )}
-                                {error.includes('Incorrect email or password') && (
-                                    <button type="button" onClick={() => alert('Password reset functionality is coming soon!')} className="mt-2 font-bold underline hover:text-red-700">
-                                        Forgot Password?
-                                    </button>
-                                )}
+                        {!isLoginView && (
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                                <span className={passwordValidation.length ? 'text-green-600' : 'text-gray-500'}>{passwordValidation.length ? '✓' : '•'} At least 8 characters</span>
+                                <span className={passwordValidation.uppercase ? 'text-green-600' : 'text-gray-500'}>{passwordValidation.uppercase ? '✓' : '•'} One uppercase letter</span>
+                                <span className={passwordValidation.number ? 'text-green-600' : 'text-gray-500'}>{passwordValidation.number ? '✓' : '•'} One number</span>
+                                <span className={passwordValidation.specialChar ? 'text-green-600' : 'text-gray-500'}>{passwordValidation.specialChar ? '✓' : '•'} One special character</span>
                             </div>
                         )}
-                        {message && <p className="text-green-600 bg-green-50 p-3 rounded-lg text-sm text-center">{message}</p>}
 
-                        <button type="submit" disabled={loading || !isFormValid} className="w-full flex justify-center items-center bg-teal-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-teal-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                            {loading ? <SpinnerIcon /> : (isLoginView ? 'Log In' : 'Create Account')}
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full bg-teal-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-teal-600 transition-colors disabled:opacity-50"
+                        >
+                            {loading ? 'Processing...' : (isLoginView ? 'Login' : 'Create Account')}
                         </button>
                     </form>
                     
-                    <p className="text-center text-sm text-gray-500">
-                        {isLoginView ? "Don't have an account?" : "Already have an account?"}
-                        <button onClick={() => { setIsLoginView(!isLoginView); setError(''); setMessage(''); setPassword(''); }} className="font-semibold text-teal-600 hover:underline ml-1">
-                            {isLoginView ? 'Sign up' : 'Log in'}
-                        </button>
-                    </p>
+                     <div className="flex items-center my-6">
+                        <div className="flex-grow border-t border-gray-300"></div>
+                        <span className="flex-shrink mx-4 text-gray-400 text-sm">Or continue with</span>
+                        <div className="flex-grow border-t border-gray-300"></div>
+                    </div>
+                    
+                    <button onClick={() => handleSocialLogin('google')} className="w-full flex items-center justify-center gap-3 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50">
+                       <GoogleIcon />
+                       <span className="text-sm font-semibold text-gray-700">Google</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -1331,304 +1325,295 @@ const AuthScreen: React.FC = () => {
 };
 
 
-// --- MAIN APP COMPONENT ---
+// --- HOOKS & MAIN APP COMPONENT ---
 
-const App: React.FC = () => {
-    // Check for missing environment variables
-    const missingKeys = [
-        !import.meta.env.VITE_API_KEY && 'VITE_API_KEY',
-        !import.meta.env.VITE_SUPABASE_URL && 'VITE_SUPABASE_URL',
-        !import.meta.env.VITE_SUPABASE_ANON_KEY && 'VITE_SUPABASE_ANON_KEY'
-    ].filter(Boolean) as string[];
-
-    // --- STATE MANAGEMENT ---
-    type OnboardingStage = 'welcome' | 'profile' | 'pet' | 'complete' | 'done';
+const useDataFetching = (user: User | null) => {
     const [loading, setLoading] = useState(true);
-    const [session, setSession] = useState<Session | null>(null);
-    const [user, setUser] = useState<User | null>(null);
-    const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [pets, setPets] = useState<Pet[]>([]);
-    const [activePet, setActivePet] = useState<Pet | null>(null); // For single-pet screens
-    const [onboardingStage, setOnboardingStage] = useState<OnboardingStage>('done');
-    const [activeScreen, setActiveScreen] = useState<ActiveScreen>('home');
-    const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
-    const [verificationEmail, setVerificationEmail] = useState('');
-    const [appError, setAppError] = useState<string>('');
-    const [showPetSelector, setShowPetSelector] = useState<ActiveScreen | null>(null);
-
-    // Adoption flow state
-    const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
-    const [selectedListingForApplication, setSelectedListingForApplication] = useState<AdoptionListing | null>(null);
-
-    // --- THEME SWITCHER EFFECT ---
-    useEffect(() => {
-        const hour = new Date().getHours();
-        // Dark theme from 7 PM to 6 AM
-        if (hour >= 19 || hour < 6) {
-            document.body.classList.add('dark-theme');
-        } else {
-            document.body.classList.remove('dark-theme');
-        }
-    }, []);
-
-    // --- DATA FETCHING & AUTH EFFECT ---
-    const checkAndSetOnboardingStage = async (currentUser: User) => {
-        if (!currentUser || !supabase) return;
-        setLoading(true);
-        setAppError('');
-
+    const [activePet, setActivePet] = useState<Pet | null>(null);
+    const [appState, setAppState] = useState<'loading' | 'onboarding-profile' | 'onboarding-pet' | 'onboarding-complete' | 'ready' | 'error'>('loading');
+    const [error, setError] = useState<string | null>(null);
+    
+    const fetchData = async (currentUser: User) => {
         try {
-            // 1. Check for profile
             const { data: profileData, error: profileError } = await supabase
-                .from('user_profiles').select('*').eq('auth_user_id', currentUser.id).single();
-
-            if (profileError && profileError.code !== 'PGRST116') throw new Error("Could not load your profile.");
+                .from('user_profiles')
+                .select('*')
+                .eq('auth_user_id', currentUser.id)
+                .single();
+                
+            if (profileError && profileError.code !== 'PGRST116') throw profileError;
+            
             if (!profileData) {
-                setOnboardingStage('welcome');
-                setProfile(null);
-                setPets([]);
+                setAppState('onboarding-profile');
+                setLoading(false);
                 return;
             }
-            setProfile(profileData);
-
-            // 2. Check for pets
-            const { data: petsData, error: petsError } = await supabase
-                .from('pets').select('*').eq('auth_user_id', currentUser.id);
+            setUserProfile(profileData);
             
-            if (petsError) throw new Error("Could not load your pet's details.");
+            const { data: petsData, error: petsError } = await supabase
+                .from('pets')
+                .select('*')
+                .eq('auth_user_id', currentUser.id);
 
-            if (!petsData || petsData.length === 0) {
-                setOnboardingStage('pet');
-                setPets([]);
-                setActivePet(null);
+            if (petsError) throw petsError;
+
+            setPets(petsData || []);
+            
+            if ((petsData || []).length === 0) {
+                 if (appState !== 'onboarding-complete') {
+                    setAppState('onboarding-pet');
+                 } else {
+                    setActivePet(null);
+                    setAppState('ready');
+                 }
             } else {
-                setPets(petsData);
-                setActivePet(petsData[0] || null); // Set the first pet as active by default
-                setOnboardingStage('done');
+                setActivePet(petsData[0]); // Default to first pet
+                setAppState('ready');
             }
+
         } catch (err: any) {
-            console.error("Error during data fetch:", err);
-            setAppError(err.message || 'An unexpected error occurred while loading your data.');
+            console.error("Data fetching error:", err);
+            setError("Could not load your data. Please try again.");
+            setAppState('error');
         } finally {
             setLoading(false);
         }
     };
     
     useEffect(() => {
-        if (!supabase) { setLoading(false); return; }
+        if (user) {
+            fetchData(user);
+        } else {
+            setLoading(false);
+            setAppState('loading'); // No user, show auth
+        }
+    }, [user]);
 
-        supabase.auth.getSession().then(({ data: { session } }) => {
+    return { loading, userProfile, pets, activePet, appState, error, fetchData, setAppState };
+};
+
+
+const useDynamicTheming = (pet: Pet | null) => {
+  useEffect(() => {
+    const hour = new Date().getHours();
+    const isNight = hour < 6 || hour >= 19;
+    document.body.classList.toggle('dark-theme', isNight);
+    
+    const isCat = pet?.species === 'Cat';
+    document.body.classList.toggle('cat-theme', isCat);
+
+    // Cleanup function
+    return () => {
+      document.body.classList.remove('dark-theme', 'cat-theme');
+    };
+  }, [pet]);
+};
+
+
+const App: React.FC = () => {
+    // --- STATE MANAGEMENT ---
+    const [missingEnvVars, setMissingEnvVars] = useState<string[]>([]);
+    const [session, setSession] = useState<Session | null>(null);
+    const [user, setUser] = useState<User | null>(null);
+    const [activeScreen, setActiveScreen] = useState<ActiveScreen>('home');
+    
+    // Data fetching and app state logic
+    const { loading, userProfile, pets, activePet, appState, error: dataError, fetchData, setAppState } = useDataFetching(user);
+    
+    // Dynamic theming
+    useDynamicTheming(activePet);
+    
+    // Health Check state
+    const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+    const [healthCheckResult, setHealthCheckResult] = useState<HealthCheckResult | null>(null);
+    const [healthCheckError, setHealthCheckError] = useState<string | null>(null);
+    
+    // Adoption flow state
+    const [selectedPetForAdoption, setSelectedPetForAdoption] = useState<string | null>(null);
+    const [adoptionListingForApplication, setAdoptionListingForApplication] = useState<AdoptionListing | null>(null);
+    
+    const [showCelebration, setShowCelebration] = useState(false);
+
+
+    // --- EFFECTS ---
+    useEffect(() => {
+        const requiredVars = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'VITE_API_KEY'];
+        const missing = requiredVars.filter(v => !import.meta.env[v]);
+        setMissingEnvVars(missing);
+        
+        if (missing.length > 0) return;
+        
+        supabase?.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
             setUser(session?.user ?? null);
-            if (session?.user) {
-                checkAndSetOnboardingStage(session.user);
-            } else {
-                setLoading(false);
-            }
         });
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        const { data: { subscription } } = supabase!.auth.onAuthStateChange((_event, session) => {
             setSession(session);
-            const currentUser = session?.user;
-            setUser(currentUser ?? null);
-            
-            if (_event === 'SIGNED_IN') {
-                 if (currentUser && !currentUser.email_confirmed_at) {
-                    setNeedsEmailVerification(true);
-                    setVerificationEmail(currentUser.email || '');
-                } else if (currentUser) {
-                    setNeedsEmailVerification(false);
-                    await checkAndSetOnboardingStage(currentUser);
-                }
-            } else if (_event === 'SIGNED_OUT') {
-                setProfile(null);
-                setPets([]);
-                setActivePet(null);
-                setOnboardingStage('done');
-                setNeedsEmailVerification(false);
-            } else if (_event === 'USER_UPDATED' || _event === 'TOKEN_REFRESHED') {
-                if (currentUser && currentUser.email_confirmed_at && needsEmailVerification) {
-                    setNeedsEmailVerification(false);
-                    await checkAndSetOnboardingStage(currentUser);
-                }
+            setUser(session?.user ?? null);
+            // If user logs out, reset app state
+            if (_event === 'SIGNED_OUT') {
+                setActiveScreen('home');
             }
         });
 
         return () => subscription.unsubscribe();
-    }, [needsEmailVerification]);
-
-    // --- NAVIGATION & MODAL LOGIC ---
-    const handleNavigation = (screen: ActiveScreen) => {
-        // For screens that need a specific pet context
-        if ((screen === 'health' || screen === 'book') && pets.length > 1) {
-            setShowPetSelector(screen);
-        } else {
-            setActiveScreen(screen);
+    }, []);
+    
+    const handleLogout = async () => {
+        if (!supabase) return;
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+            console.error("Error logging out:", error.message);
         }
     };
     
-    const handlePetSelect = (pet: Pet) => {
-        if (showPetSelector) {
-            setActivePet(pet);
-            setActiveScreen(showPetSelector);
-            setShowPetSelector(null);
-        }
+    const handleDataUpdate = () => {
+        if (user) fetchData(user);
     };
 
-    // --- AI HEALTH CHECK LOGIC ---
-    const [healthCheckResult, setHealthCheckResult] = useState<HealthCheckResult | null>(null);
-    const [isCheckingHealth, setIsCheckingHealth] = useState(false);
-    const [healthCheckError, setHealthCheckError] = useState<string | null>(null);
-
-    const handleAnalyzePet = async (imageFile: File, notes: string) => {
+    const handleAnalyzePetHealth = async (imageFile: File, notes: string) => {
         if (!activePet) {
-          setHealthCheckError("No pet selected for analysis.");
-          return;
+            setHealthCheckError("No active pet selected.");
+            return;
         }
-
         setIsCheckingHealth(true);
         setHealthCheckResult(null);
         setHealthCheckError(null);
-
+        
         try {
             const reader = new FileReader();
             reader.readAsDataURL(imageFile);
-            reader.onloadend = async () => {
-                const base64String = (reader.result as string).split(',')[1];
+            reader.onload = async () => {
+                const base64Image = (reader.result as string).split(',')[1];
                 const petContext = {
                     name: activePet.name,
                     breed: activePet.breed,
-                    age: new Date(activePet.birth_date).toLocaleDateString()
+                    age: new Date(activePet.birth_date).toLocaleDateString(),
                 };
-                const result = await geminiService.analyzePetHealth(base64String, imageFile.type, notes, petContext);
-                setHealthCheckResult(result);
+                
+                try {
+                    const result = await geminiService.analyzePetHealth(base64Image, imageFile.type, notes, petContext);
+                    setHealthCheckResult(result);
+
+                    // Trigger celebration on success
+                    if (result && supabase) {
+                      const { data: { user } } = await supabase.auth.getUser();
+                      if (!user) return;
+
+                      const newFeedbackEntry: Omit<AIFeedback, 'id' | 'submitted_at'> = {
+                        pet_id: activePet.id,
+                        auth_user_id: user.id,
+                        input_data: { notes },
+                        ai_response: JSON.stringify(result),
+                        status: 'completed',
+                      };
+                      await supabase.from('ai_feedback').insert(newFeedbackEntry);
+                      
+                      setShowCelebration(true);
+                      setTimeout(() => setShowCelebration(false), 5000); // Hide after 5s
+                    }
+
+                } catch (err: any) {
+                    setHealthCheckError(err.message || 'An unknown error occurred during analysis.');
+                } finally {
+                    setIsCheckingHealth(false);
+                }
             };
-        } catch (error: any) {
-            console.error(error);
-            setHealthCheckError(error.message || "An unknown error occurred during analysis.");
-        } finally {
+            reader.onerror = () => {
+                setHealthCheckError("Could not read the image file.");
+                setIsCheckingHealth(false);
+            };
+        } catch (err: any) {
+            setHealthCheckError(err.message);
             setIsCheckingHealth(false);
         }
     };
     
-    const resetHealthCheck = () => {
-        setHealthCheckResult(null);
-        setHealthCheckError(null);
-        setIsCheckingHealth(false);
-        setActiveScreen('home');
-    };
-
-    // --- PET SELECTOR MODAL ---
-    const PetSelectorModal: React.FC<{
-        pets: Pet[];
-        onSelect: (pet: Pet) => void;
-        onCancel: () => void;
-    }> = ({ pets, onSelect, onCancel }) => (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onCancel}>
-            <div className="bg-white rounded-2xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-                <h2 className="text-xl font-bold text-center text-gray-800 mb-4">Choose a Pet</h2>
-                <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-                    {pets.map(p => (
-                        <button
-                            key={p.id}
-                            onClick={() => onSelect(p)}
-                            className="w-full flex items-center p-3 bg-gray-50 rounded-lg hover:bg-teal-100 transition-colors"
-                        >
-                            <img src={p.photo_url} alt={p.name} className="w-12 h-12 rounded-full object-cover mr-4" />
-                            <div>
-                                <p className="font-semibold text-left text-gray-900">{p.name}</p>
-                                <p className="text-sm text-left text-gray-500">{p.breed}</p>
-                            </div>
-                        </button>
-                    ))}
-                </div>
-                 <button onClick={onCancel} className="w-full mt-4 bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">
-                    Cancel
-                </button>
-            </div>
-        </div>
-    );
-
     // --- RENDER LOGIC ---
-    if (missingKeys.length > 0) {
-        return <EnvironmentVariablePrompt missingKeys={missingKeys} />;
+    if (missingEnvVars.length > 0) {
+        return <EnvironmentVariablePrompt missingKeys={missingEnvVars} />;
     }
     
-    if (appError) {
-        return <AppErrorScreen message={appError} onRetry={() => { setAppError(''); if (user) checkAndSetOnboardingStage(user); }} />;
+    if (appState === 'loading' && !user) {
+        return <AuthScreen />;
     }
     
-    if (loading && onboardingStage === 'done' && activeScreen !== 'home') {
-        // Show loading screen for other screens, but let HomeScreen handle its own skeleton
-    } else if (loading && activeScreen !== 'home') {
+    if (appState === 'loading') {
         return <LoadingScreen />;
     }
     
-    if (!session || !user) {
+    if (appState === 'error') {
+        return <AppErrorScreen message={dataError || "An unknown error occurred."} onRetry={() => user && fetchData(user)} />;
+    }
+    
+    if (!user) {
         return <AuthScreen />;
     }
 
-    if (needsEmailVerification) {
-        return <EmailVerificationScreen email={verificationEmail} />;
+    // Onboarding Flow
+    switch (appState) {
+        case 'onboarding-profile':
+            return <OnboardingProfileScreen user={user} profile={userProfile} onProfileCreated={handleDataUpdate} />;
+        case 'onboarding-pet':
+            return <OnboardingPetScreen user={user} onPetAdded={() => setAppState('onboarding-complete')} onBack={() => alert("Profile editing from onboarding is not implemented yet. Please continue.")} onSkip={() => setAppState('ready')} />;
+        case 'onboarding-complete':
+            return <OnboardingCompletionScreen pet={pets[0] || activePet} onComplete={() => { handleDataUpdate(); setAppState('ready'); }} />;
     }
     
-    if (onboardingStage !== 'done') {
-        switch (onboardingStage) {
-            case 'welcome':
-                return <WelcomeScreen onGetStarted={() => setOnboardingStage('profile')} />;
-            case 'profile':
-                return <OnboardingProfileScreen user={user} profile={profile} onProfileCreated={() => { checkAndSetOnboardingStage(user); setOnboardingStage('pet'); }} />;
-            case 'pet':
-                 return <OnboardingPetScreen user={user} onPetAdded={() => setOnboardingStage('complete')} onSkip={() => setOnboardingStage('done')} onBack={() => setOnboardingStage('profile')} />;
-            case 'complete':
-                return <OnboardingCompletionScreen pet={activePet} onComplete={() => checkAndSetOnboardingStage(user)} />;
-            default:
-                return <LoadingScreen />;
+    const renderActiveScreen = () => {
+        if (selectedPetForAdoption) {
+            return <PetDetailScreen 
+                        petId={selectedPetForAdoption} 
+                        onBack={() => setSelectedPetForAdoption(null)} 
+                        onApply={(listing) => { setAdoptionListingForApplication(listing); setActiveScreen('adoptionApplication'); }}
+                    />
         }
-    }
-    
-    const renderScreen = () => {
-        switch(activeScreen) {
+        
+        switch (activeScreen) {
             case 'home':
-                return <HomeScreen onNavigate={handleNavigation} pet={activePet} profile={profile} isLoading={loading} />;
+                return <HomeScreen onNavigate={setActiveScreen} pet={activePet} profile={userProfile} isLoading={loading} showCelebration={showCelebration} />;
             case 'book':
                 return <PetBookScreen onBack={() => setActiveScreen('home')} pet={activePet} />;
             case 'connect':
-                 return <ConnectScreen currentUserProfile={profile} currentUser={user} />;
-            case 'profile':
-                return <ProfileScreen user={user} profile={profile} pets={pets} onBack={() => setActiveScreen('home')} onLogout={() => supabase.auth.signOut()} onDataUpdate={() => checkAndSetOnboardingStage(user)} onNavigate={setActiveScreen} />;
-            case 'health':
-                return <HealthCheckScreen pet={activePet} onBack={resetHealthCheck} onAnalyze={handleAnalyzePet} isChecking={isCheckingHealth} result={healthCheckResult} error={healthCheckError} />;
+                return <ConnectScreen currentUserProfile={userProfile} currentUser={user} />;
             case 'adoption':
-                 return <AdoptionScreen onBack={() => setActiveScreen('home')} onSelectPet={(petId) => { setSelectedPetId(petId); setActiveScreen('petDetail'); }} />;
-            case 'admin':
-                return <AdminDashboardScreen onBack={() => setActiveScreen('profile')} />;
+                return <AdoptionScreen onBack={() => setActiveScreen('home')} onSelectPet={setSelectedPetForAdoption} />;
+            case 'profile':
+                return <ProfileScreen user={user} profile={userProfile} pets={pets} onBack={() => setActiveScreen('home')} onLogout={handleLogout} onDataUpdate={handleDataUpdate} onNavigate={setActiveScreen} />;
+            case 'health':
+                return <HealthCheckScreen pet={activePet} onBack={() => { setActiveScreen('home'); setHealthCheckResult(null); setHealthCheckError(null); }} onAnalyze={handleAnalyzePetHealth} isChecking={isCheckingHealth} result={healthCheckResult} error={healthCheckError} />;
             case 'vet':
-                return <PlaceholderScreen title="Vet Booking" icon={ICONS.VET_BOOKING} message="Coming soon! Find and book appointments with trusted veterinarians in your city." onBack={() => setActiveScreen('home')} />;
+                return <PlaceholderScreen title="Vet Booking" icon={ICONS.VET_BOOKING} message="Our vet booking feature is under development. Soon you'll be able to find and book appointments with trusted local veterinarians." onBack={() => setActiveScreen('home')} />;
             case 'essentials':
                 return <ShopScreen onBack={() => setActiveScreen('home')} />;
-            case 'petDetail':
-                 if (!selectedPetId) return <AdoptionScreen onBack={() => setActiveScreen('home')} onSelectPet={(petId) => { setSelectedPetId(petId); setActiveScreen('petDetail'); }} />;
-                 return <PetDetailScreen petId={selectedPetId} onBack={() => { setSelectedPetId(null); setActiveScreen('adoption'); }} onApply={(listing) => { setSelectedListingForApplication(listing); setActiveScreen('adoptionApplication'); }} />;
+            case 'admin':
+                return <AdminDashboardScreen onBack={() => setActiveScreen('profile')} />;
             case 'adoptionApplication':
-                 if (!selectedListingForApplication) return <AdoptionScreen onBack={() => setActiveScreen('home')} onSelectPet={(petId) => { setSelectedPetId(petId); setActiveScreen('petDetail'); }} />; // fallback
-                 return <AdoptionApplicationScreen listing={selectedListingForApplication} userProfile={profile} onBack={() => setActiveScreen('petDetail')} onSubmitted={() => { setSelectedListingForApplication(null); setActiveScreen('myApplications'); }} />;
+                if (!adoptionListingForApplication) return <div onClick={() => setActiveScreen('adoption')}>Listing not found. Go back.</div>;
+                return <AdoptionApplicationScreen listing={adoptionListingForApplication} userProfile={userProfile} onBack={() => setActiveScreen('adoption')} onSubmitted={() => { alert('Application submitted successfully!'); setActiveScreen('myApplications'); }} />
             case 'myApplications':
-                 return <MyApplicationsScreen onBack={() => setActiveScreen('profile')} />;
+                return <MyApplicationsScreen onBack={() => setActiveScreen('profile')} />;
             case 'safetyCenter':
                 return <SafetyCenterScreen onBack={() => setActiveScreen('profile')} />;
             default:
-                return <HomeScreen onNavigate={handleNavigation} pet={activePet} profile={profile} isLoading={loading} />;
+                return <HomeScreen onNavigate={setActiveScreen} pet={activePet} profile={userProfile} isLoading={loading} showCelebration={showCelebration} />;
         }
     };
 
     return (
-        <div className="pb-16">
-            {renderScreen()}
-            {showPetSelector && <PetSelectorModal pets={pets} onSelect={handlePetSelect} onCancel={() => setShowPetSelector(null)} />}
-            {['home', 'book', 'connect', 'adoption', 'profile'].includes(activeScreen) && <BottomNav activeScreen={activeScreen} onNavigate={handleNavigation} />}
+        <div className="h-screen w-screen overflow-hidden">
+            <main className="h-full">
+                {renderActiveScreen()}
+            </main>
+            {/* Render BottomNav only on main screens */}
+            {['home', 'book', 'connect', 'adoption', 'profile'].includes(activeScreen) && (
+                <BottomNav activeScreen={activeScreen} onNavigate={setActiveScreen} />
+            )}
         </div>
     );
-}
+};
 
 export default App;

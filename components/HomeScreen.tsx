@@ -1,26 +1,113 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Pet, UserProfile, ActiveScreen } from '../types';
 import ServiceCard from './ServiceCard';
 import { ICONS } from '../constants';
+import Confetti from './Confetti';
 
-// Updated AiScanIcon to be more vibrant and fit the new design
-const AiScanIcon: React.FC = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-16 w-16">
-    <defs>
-      <radialGradient id="ai-glow" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
-        <stop offset="0%" stopColor="rgba(255, 255, 255, 0.5)" />
-        <stop offset="100%" stopColor="rgba(255, 255, 255, 0)" />
-      </radialGradient>
-    </defs>
-    <path d="M7 3H5a2 2 0 0 0-2 2v2" stroke="var(--color-text-primary)" />
-    <path d="M17 3h2a2 2 0 0 1 2 2v2" stroke="var(--color-text-primary)" />
-    <path d="M21 17v2a2 2 0 0 1-2 2h-2" stroke="var(--color-text-primary)" />
-    <path d="M3 17v2a2 2 0 0 0 2 2h2" stroke="var(--color-text-primary)" />
-    <circle cx="12" cy="12" r="5" fill="url(#ai-glow)" stroke="none" />
-    <circle cx="12" cy="12" r="3" stroke="var(--color-text-primary)" />
-  </svg>
-);
+// --- DYNAMIC COMPONENTS ---
 
+const getGreeting = (): string => {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+};
+
+const AnimatedGreeting: React.FC<{ name: string | undefined }> = ({ name }) => {
+  const greeting = getGreeting();
+  const text = name ? `${greeting}, ${name.split(' ')[0]}!` : greeting;
+  
+  return (
+    <h1 className="font-poppins text-3xl md:text-4xl font-extrabold text-center pt-4" style={{ color: 'var(--color-text-primary)' }}>
+      {text.split('').map((char, index) => (
+        <span key={index} className="greeting-char" style={{ animationDelay: `${index * 0.03}s` }}>
+          {char === ' ' ? '\u00A0' : char}
+        </span>
+      ))}
+    </h1>
+  );
+};
+
+const WellnessActionButton: React.FC<{ disabled: boolean; onNavigate: (screen: ActiveScreen) => void }> = ({ disabled, onNavigate }) => {
+  const wellnessScore = 85; // This could be dynamic in a future version
+  const circumference = 2 * Math.PI * 65; // radius = 65 for a 144px (w-36) container
+  const offset = circumference - (wellnessScore / 100) * circumference;
+
+  return (
+    <button
+      onClick={() => !disabled && onNavigate('health')}
+      disabled={disabled}
+      className="relative rounded-full shadow-xl w-36 h-36 flex flex-col items-center justify-center space-y-1 transition-all duration-300 transform focus:outline-none focus:ring-4 focus:ring-white/30 disabled:opacity-50 disabled:cursor-not-allowed enabled:hover:scale-105 interactive-scale"
+      style={{
+        backgroundColor: 'var(--card-bg)',
+        borderColor: 'var(--card-border)',
+        borderWidth: '1px'
+      }}
+      aria-label={`Current Wellness Score is ${wellnessScore} percent. Tap for an AI Health Scan.`}
+    >
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 144 144">
+        <circle className="wellness-circle-bg" cx="72" cy="72" r="65"></circle>
+        <circle className="wellness-circle-progress" cx="72" cy="72" r="65" style={{strokeDasharray: circumference, strokeDashoffset: offset}}></circle>
+      </svg>
+      <div className="relative z-10 flex flex-col items-center">
+        <span className="font-poppins font-bold text-3xl" style={{ color: 'var(--color-text-primary)' }}>{wellnessScore}%</span>
+        <span className="text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>Wellness Score</span>
+      </div>
+    </button>
+  );
+};
+
+const TipOfTheDay: React.FC = () => {
+  const tips = [
+    "Ensure your pet has fresh water at all times, especially in hot weather.",
+    "Regular walks are key to a dog's physical and mental health.",
+    "A balanced diet is crucial. Avoid feeding your pet table scraps.",
+    "Cats love vertical spaces. Consider getting a cat tree for them to climb.",
+    "Check your pet's paws for cracks or foreign objects after walks on rough terrain."
+  ];
+  const [tip] = useState(() => tips[Math.floor(Math.random() * tips.length)]);
+
+  return (
+    <div className="text-center animate-tip-in px-4">
+      <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)'}}>💡 Tip of the Day</p>
+      <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)'}}>{tip}</p>
+    </div>
+  );
+};
+
+// --- HOOKS ---
+
+const calculatePetAgeInMonths = (birthDate: string): number => {
+    if (!birthDate) return 999;
+    const dob = new Date(birthDate);
+    const now = new Date();
+    let months = (now.getFullYear() - dob.getFullYear()) * 12;
+    months -= dob.getMonth();
+    months += now.getMonth();
+    return months <= 0 ? 0 : months;
+};
+
+const useSmartServiceOrdering = (services: any[], pet: Pet | null) => {
+    return useMemo(() => {
+        if (!pet) return services;
+        const ageInMonths = calculatePetAgeInMonths(pet.birth_date);
+        const sortedServices = [...services];
+        
+        // Rule: Prioritize Vet Booking for young pets (under 12 months)
+        if (ageInMonths < 12) {
+            sortedServices.sort((a, b) => {
+                if (a.title === "Book a Vet") return -1;
+                if (b.title === "Book a Vet") return 1;
+                if (b.title === "AI Health Check") return 1;
+                return 0;
+            });
+        }
+        
+        return sortedServices;
+    }, [services, pet]);
+};
+
+// --- SKELETON & MAIN COMPONENT ---
 
 const HomeScreenSkeleton: React.FC = () => (
   <div className="min-h-screen w-full animated-gradient p-4 md:p-6">
@@ -30,12 +117,8 @@ const HomeScreenSkeleton: React.FC = () => (
 
       {/* Main Action */}
       <section className="flex flex-col items-center space-y-4 pt-8">
-        <div className="w-44 h-44 bg-white/10 rounded-3xl"></div>
+        <div className="w-44 h-44 bg-white/10 rounded-full"></div>
          <div className="h-5 w-1/2 bg-white/10 rounded-lg mt-2"></div>
-        <div className="flex items-center gap-4 pt-2">
-          <div className="w-28 h-10 bg-white/10 rounded-xl"></div>
-          <div className="w-28 h-10 bg-white/10 rounded-xl"></div>
-        </div>
       </section>
 
       {/* Our Services */}
@@ -57,86 +140,22 @@ interface HomeScreenProps {
   pet: Pet | null;
   profile: UserProfile | null;
   isLoading: boolean;
+  showCelebration: boolean;
 }
 
-const PullToRefreshIndicator: React.FC<{ pullDistance: number, isRefreshing: boolean }> = ({ pullDistance, isRefreshing }) => {
-    const PULL_THRESHOLD = 80;
-    const clampedDistance = Math.min(pullDistance, PULL_THRESHOLD * 1.5);
-    const rotation = Math.min(pullDistance, PULL_THRESHOLD) * 2;
-    const dashOffset = 250 - (Math.min(pullDistance / PULL_THRESHOLD, 1) * 250);
-
-    return (
-        <div
-            className="pull-to-refresh-indicator h-20"
-            style={{ transform: `translateY(${clampedDistance - 80}px)` }}
-        >
-            <div className={`paw-loader ${isRefreshing ? 'refreshing' : ''}`} style={{ transform: `rotate(${rotation}deg)` }}>
-                <svg width="40" height="40" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                        className="paw-path"
-                        d="M22 6C15.4 6 10 11.4 10 18C10 21.3 11.4 24.3 13.5 26.5M22 38C28.6 38 34 32.6 34 26C34 22.7 32.6 19.7 30.5 17.5M15 11C13.9 11 13 11.9 13 13C13 14.1 13.9 15 15 15C16.1 15 17 14.1 17 13C17 11.9 16.1 11 15 11ZM29 29C27.9 29 27 29.9 27 31C27 32.1 27.9 33 29 33C30.1 33 31 32.1 31 31C31 29.9 30.1 29 29 29Z"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        style={{ strokeDashoffset: isRefreshing ? undefined : dashOffset }}
-                    />
-                </svg>
-            </div>
-        </div>
-    );
-};
-
-
-const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile, isLoading }) => {
-  const isVetDisabled = true; 
-  const isEncyclopediaDisabled = true;
+const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile, isLoading, showCelebration }) => {
   const isPetFeatureDisabled = !pet;
-
-  const contentRef = useRef<HTMLDivElement>(null);
-  const carouselRef = useRef<HTMLDivElement>(null);
-  
-  // Pull to refresh state
-  const [pullStartY, setPullStartY] = useState(0);
-  const [pullDistance, setPullDistance] = useState(0);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  
-  // Carousel state
+  const carouselRef = React.useRef<HTMLDivElement>(null);
   const [activeServiceIndex, setActiveServiceIndex] = useState(0);
 
   const services = [
-    { title: "AI Health Check", subtitle: "Quick health analysis", icon: ICONS.HEALTH_CHECK, onClick: () => onNavigate('health'), disabled: isPetFeatureDisabled, iconBgColor: "" },
-    { title: "Book a Vet", subtitle: "Find trusted vets", icon: ICONS.VET_BOOKING, onClick: () => onNavigate('vet'), disabled: isVetDisabled, iconBgColor: "" },
-    { title: "Marketplace", subtitle: "Pet essentials store", icon: ICONS.PET_ESSENTIALS, onClick: () => onNavigate('essentials'), disabled: false, iconBgColor: "" },
-    { title: "Pet Encyclopedia", subtitle: "Breed information", icon: ICONS.PET_BOOK, onClick: () => alert('Pet Encyclopedia is coming soon!'), disabled: isEncyclopediaDisabled, iconBgColor: "" }
+    { title: "AI Health Check", subtitle: "Quick health analysis", icon: ICONS.HEALTH_CHECK, onClick: () => onNavigate('health'), disabled: isPetFeatureDisabled },
+    { title: "Book a Vet", subtitle: "Find trusted vets", icon: ICONS.VET_BOOKING, onClick: () => onNavigate('vet'), disabled: true },
+    { title: "Marketplace", subtitle: "Pet essentials store", icon: ICONS.PET_ESSENTIALS, onClick: () => onNavigate('essentials'), disabled: false },
+    { title: "PetBook", subtitle: "Community feed", icon: ICONS.PET_BOOK, onClick: () => onNavigate('book'), disabled: isPetFeatureDisabled }
   ];
   
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (contentRef.current?.scrollTop === 0) {
-      setPullStartY(e.targetTouches[0].clientY);
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (pullStartY === 0) return;
-    const currentY = e.targetTouches[0].clientY;
-    const distance = currentY - pullStartY;
-    if (distance > 0) {
-      setPullDistance(distance);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (pullDistance > 80) { // Refresh threshold
-      setIsRefreshing(true);
-      // Simulate data fetching
-      setTimeout(() => {
-        setIsRefreshing(false);
-      }, 2000);
-    }
-    setPullStartY(0);
-    setPullDistance(0);
-  };
+  const orderedServices = useSmartServiceOrdering(services, pet);
   
   const handleCarouselScroll = () => {
     if (!carouselRef.current) return;
@@ -161,6 +180,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile, isLoa
 
   return (
     <>
+      {showCelebration && <Confetti />}
       {/* Background elements */}
       <div className="parallax-bg">
           <div className="parallax-layer layer-1"></div>
@@ -174,71 +194,31 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile, isLoa
       <div 
         className="min-h-screen w-full animated-gradient relative z-10 overflow-y-auto" 
         style={{ animation: 'fade-in 0.5s ease-in-out' }}
-        ref={contentRef}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
-        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
-        <div className="p-4 md:p-6 space-y-8">
-          {/* Title */}
-          <h1 className="font-poppins text-3xl md:text-4xl font-extrabold text-center pt-4 text-glow" style={{ color: 'var(--color-text-primary)'}}>
-            Wellness Hub for {pet?.name || 'Your Pet'}
-          </h1>
+        <div className="p-4 md:p-6 space-y-8 pb-24">
+          <AnimatedGreeting name={profile?.name} />
 
           {/* Main Action */}
-          <section className="flex flex-col items-center space-y-3 pt-4">
-            <button
-              onClick={() => !isPetFeatureDisabled && onNavigate('health')}
-              disabled={isPetFeatureDisabled}
-              className="relative overflow-hidden backdrop-blur-lg rounded-3xl shadow-xl w-44 h-44 flex flex-col items-center justify-center space-y-2 transition-all duration-300 transform focus:outline-none focus:ring-4 focus:ring-white/30 disabled:opacity-50 disabled:cursor-not-allowed enabled:hover:scale-105 animate-breathing-glow interactive-scale"
-              style={{ 
-                  animation: 'subtle-bounce-in 0.8s ease-out',
-                  backgroundColor: 'var(--card-bg)',
-                  borderColor: 'var(--card-border)',
-                  borderWidth: '1px'
-              }}
-              aria-label="Start AI Health Scan"
-            >
-              <AiScanIcon />
-              <span className="font-poppins font-semibold text-base" style={{ color: 'var(--color-text-primary)' }}>AI Health Scan</span>
-            </button>
-            
+          <section className="flex flex-col items-center space-y-4 pt-6">
+            <WellnessActionButton disabled={isPetFeatureDisabled} onNavigate={onNavigate} />
             <p className="text-sm animate-slide-in h-5" style={{ color: 'var(--color-text-secondary)' }}>
-              {isPetFeatureDisabled ? 'Add a pet to get started!' : 'Tap the orb for a quick scan'}
+              {isPetFeatureDisabled ? 'Add a pet to get started!' : `How's ${pet?.name} feeling today?`}
             </p>
-
-            <div className="flex items-center gap-4 pt-2">
-              <button
-                onClick={() => onNavigate('vet')}
-                className="backdrop-blur-md rounded-xl px-6 py-2 font-semibold transition-colors shadow-lg interactive-scale"
-                style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)', borderWidth: '1px', color: 'var(--color-text-primary)' }}
-              >
-                Book a Vet
-              </button>
-              <button
-                onClick={() => onNavigate('book')}
-                disabled={isPetFeatureDisabled}
-                className="backdrop-blur-md rounded-xl px-6 py-2 font-semibold transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed interactive-scale"
-                 style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)', borderWidth: '1px', color: 'var(--color-text-primary)' }}
-              >
-                Pet Book
-              </button>
-            </div>
+            <TipOfTheDay />
           </section>
 
           {/* Our Services */}
           <section className="space-y-4 pt-6">
-            <h2 className="font-poppins text-2xl font-bold text-glow" style={{ color: 'var(--color-text-primary)'}}>Our Services</h2>
+            <h2 className="font-poppins text-2xl font-bold" style={{ color: 'var(--color-text-primary)'}}>Our Services</h2>
             <div ref={carouselRef} className="service-carousel -mx-4 px-4 flex gap-2">
-              {services.map((service, index) => (
-                <div key={index} className="service-carousel-slide">
-                  <ServiceCard {...service} />
+              {orderedServices.map((service) => (
+                <div key={service.title} className="service-carousel-slide">
+                  <ServiceCard {...service} iconBgColor="" />
                 </div>
               ))}
             </div>
              <div className="carousel-dots">
-              {services.map((_, index) => (
+              {orderedServices.map((_, index) => (
                 <div key={index} className={`carousel-dot ${index === activeServiceIndex ? 'active' : ''}`}></div>
               ))}
             </div>

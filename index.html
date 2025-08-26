@@ -55,6 +55,21 @@
         --shadow-color-2: rgba(76, 81, 191, 0.3);
       }
 
+      /* --- NEW CAT THEME (MOONLIGHT) --- */
+      body.cat-theme {
+        --color-bg-gradient-start: #A78BFA; /* Soft Lavender */
+        --color-bg-gradient-end: #E9D5FF; /* Pale Lilac */
+        --color-text-primary: #2D3748;
+        --color-text-secondary: #4A5568;
+        --color-accent: #F687B3; /* Coral-Pink remains for contrast */
+      }
+      body.cat-theme.dark-theme {
+          --color-bg-gradient-start: #2D3748; /* Midnight Blue */
+          --color-bg-gradient-end: #5A67D8; /* Indigo */
+          --color-text-primary: #E2E8F0;
+          --color-text-secondary: #A0AEC0;
+      }
+
       body {
         font-family: 'DM Sans', sans-serif;
         background-color: var(--color-bg-gradient-start); /* Fallback */
@@ -219,6 +234,56 @@
       @keyframes spin {
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
+      }
+      
+      /* --- DYNAMIC HOME SCREEN --- */
+      @keyframes character-in {
+        from { opacity: 0; transform: translateY(10px) skewX(-20deg); }
+        to { opacity: 1; transform: translateY(0) skewX(0); }
+      }
+      .greeting-char {
+        display: inline-block;
+        opacity: 0;
+        animation: character-in 0.5s ease-out forwards;
+      }
+
+      .wellness-circle-bg {
+        fill: none;
+        stroke: var(--card-border);
+        stroke-width: 8;
+      }
+      .wellness-circle-progress {
+        fill: none;
+        stroke: var(--color-accent);
+        stroke-width: 8;
+        stroke-linecap: round;
+        transform: rotate(-90deg);
+        transform-origin: 50% 50%;
+        transition: stroke-dashoffset 0.8s ease-out;
+      }
+
+      @keyframes tip-fade-in {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-tip-in {
+        animation: tip-fade-in 0.6s ease-out forwards;
+      }
+
+      .confetti-container {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        pointer-events: none;
+        z-index: 9999;
+      }
+      .confetti {
+        position: absolute;
+        opacity: 0;
+        animation: confetti-fall 4s linear forwards;
+      }
+      @keyframes confetti-fall {
+        0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
       }
     </style>
   <script type="importmap">

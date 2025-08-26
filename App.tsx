@@ -7,7 +7,7 @@ import { supabase } from './services/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
 
 import FeatureCard from './components/FeatureCard';
-import ApiKeyPrompt from './components/ApiKeyPrompt';
+import EnvironmentVariablePrompt from './components/ApiKeyPrompt';
 import { marked } from 'marked';
 
 type ActiveScreen = 'home' | 'book' | 'essentials' | 'vet' | 'profile' | 'petDataAI' | 'environmentVariables';
@@ -336,7 +336,6 @@ const BottomNav: React.FC<{ onNavigate: (screen: ActiveScreen) => void; activeSc
 // --- MAIN APP COMPONENT ---
 
 const App: React.FC = () => {
-  const [apiKeyExists, setApiKeyExists] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -360,9 +359,16 @@ const App: React.FC = () => {
   
   const imageCaptureRef = useRef<HTMLInputElement>(null);
 
+  // Check for all required environment variables.
+  const requiredKeys = ['API_KEY', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'];
+  const missingKeys = requiredKeys.filter(key => !(process.env as any)[key]);
+
   useEffect(() => {
-    // Check for API key on initial load
-    setApiKeyExists(!!process.env.API_KEY);
+    // If keys are missing, don't proceed with auth setup.
+    if (missingKeys.length > 0) {
+        setIsLoading(false);
+        return;
+    }
 
     // Set up auth state listener
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -563,8 +569,8 @@ const App: React.FC = () => {
 
   // --- RENDER LOGIC ---
 
-  if (!apiKeyExists) {
-    return <ApiKeyPrompt />;
+  if (missingKeys.length > 0) {
+    return <EnvironmentVariablePrompt missingKeys={missingKeys} />;
   }
 
   if (isLoading) {

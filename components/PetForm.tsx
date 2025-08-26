@@ -11,9 +11,11 @@ interface PetFormProps {
     isSaving: boolean;
     setIsSaving: (isSaving: boolean) => void;
     isOnboarding?: boolean;
+    onBack?: () => void;
+    onSkip?: () => void;
 }
 
-const PetForm: React.FC<PetFormProps> = ({ user, petToEdit, onSave, onCancel, isSaving, setIsSaving, isOnboarding = false }) => {
+const PetForm: React.FC<PetFormProps> = ({ user, petToEdit, onSave, onCancel, isSaving, setIsSaving, isOnboarding = false, onBack, onSkip }) => {
     const [name, setName] = useState(petToEdit?.name || '');
     const [species, setSpecies] = useState(petToEdit?.species || '');
     const [breed, setBreed] = useState(petToEdit?.breed || '');
@@ -88,6 +90,11 @@ const PetForm: React.FC<PetFormProps> = ({ user, petToEdit, onSave, onCancel, is
                 <h1 className="text-2xl font-bold text-gray-800">
                     {isOnboarding ? "Add Your Pet" : (petToEdit ? "Edit Pet Profile" : "Add a New Pet")}
                 </h1>
+                {isOnboarding && (
+                    <button onClick={onSkip} className="text-sm font-semibold text-gray-500 hover:text-gray-800">
+                        Skip for now
+                    </button>
+                )}
                 {!isOnboarding && (
                      <button onClick={onCancel} className="text-gray-500 hover:text-gray-800">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -137,14 +144,25 @@ const PetForm: React.FC<PetFormProps> = ({ user, petToEdit, onSave, onCancel, is
             </main>
 
             <footer className="flex gap-4 pt-4 flex-shrink-0">
-                {!isOnboarding && (
-                    <button onClick={onCancel} className="w-full bg-gray-200 text-gray-700 font-bold py-3 px-4 rounded-lg hover:bg-gray-300">
-                        Cancel
-                    </button>
+                {isOnboarding ? (
+                    <>
+                        <button onClick={onBack} className="flex-1 bg-gray-200 text-gray-700 font-bold py-3 px-4 rounded-lg hover:bg-gray-300">
+                            Back
+                        </button>
+                        <button onClick={handleSave} disabled={isSaving} className="flex-1 bg-teal-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-teal-600 disabled:opacity-50">
+                            {isSaving ? 'Saving...' : "Finish Setup"}
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button onClick={onCancel} className="w-full bg-gray-200 text-gray-700 font-bold py-3 px-4 rounded-lg hover:bg-gray-300">
+                            Cancel
+                        </button>
+                        <button onClick={handleSave} disabled={isSaving} className="w-full bg-teal-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-teal-600 disabled:opacity-50">
+                            {isSaving ? 'Saving...' : "Save Changes"}
+                        </button>
+                    </>
                 )}
-                <button onClick={handleSave} disabled={isSaving} className="w-full bg-teal-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-teal-600 disabled:opacity-50">
-                    {isSaving ? 'Saving...' : (isOnboarding ? "Finish Setup" : "Save Changes")}
-                </button>
             </footer>
         </div>
     );

@@ -358,6 +358,8 @@ const App: React.FC = () => {
   const [isAiTyping, setIsAiTyping] = useState(false);
   
   const imageCaptureRef = useRef<HTMLInputElement>(null);
+  const userProfileRef = useRef(userProfile);
+  userProfileRef.current = userProfile;
 
   // Check for all required environment variables.
   const requiredKeys = ['VITE_API_KEY', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
@@ -379,9 +381,14 @@ const App: React.FC = () => {
             setPets([]);
             setTimeline([]);
             setIsLoading(false);
-        } else {
-            // User logged in, fetch their data
-            fetchInitialData(session.user.id);
+        } else if (session.user) {
+            // User is logged in.
+            // Check ref to see if profile was just created client-side.
+            // If so, don't re-fetch and risk a race condition with the DB.
+            const profileExistsInState = userProfileRef.current?.auth_user_id === session.user.id;
+            if (!profileExistsInState) {
+                fetchInitialData(session.user.id);
+            }
         }
     });
 

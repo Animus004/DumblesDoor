@@ -360,7 +360,7 @@ const App: React.FC = () => {
   const imageCaptureRef = useRef<HTMLInputElement>(null);
 
   // Check for all required environment variables.
-  const requiredKeys = ['API_KEY', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'];
+  const requiredKeys = ['VITE_API_KEY', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
   const missingKeys = requiredKeys.filter(key => !(process.env as any)[key]);
 
   useEffect(() => {

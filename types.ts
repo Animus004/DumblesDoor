@@ -1,4 +1,5 @@
 
+
 export interface UserProfile {
   auth_user_id: string;
   name: string;
@@ -100,7 +101,8 @@ export interface TimelineEntry {
 }
 
 
-export type ActiveModal = 'health' | 'vet' | 'essentials' | 'book' | 'chat' | 'petDataAI' | 'profile' | null;
+export type ActiveModal = 'chat' | null;
+export type ActiveScreen = 'home' | 'book' | 'essentials' | 'vet' | 'profile' | 'health';
 
 // This type matches the Gemini SDK's expectation for chat history
 export interface GeminiChatMessage {

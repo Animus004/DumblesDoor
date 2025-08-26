@@ -9,9 +9,30 @@ import { Session, User } from '@supabase/supabase-js';
 import FeatureCard from './components/FeatureCard';
 import EnvironmentVariablePrompt from './components/ApiKeyPrompt';
 import Header from './components/Header';
+import HealthCheckScreen from './components/HealthCheckScreen';
 import { marked } from 'marked';
 
-type ActiveScreen = 'home' | 'book' | 'essentials' | 'vet' | 'profile' | 'petDataAI' | 'environmentVariables';
+type ActiveScreen = 'home' | 'book' | 'essentials' | 'vet' | 'profile' | 'health' | 'environmentVariables';
+
+
+// --- UTILITY & PLACEHOLDER COMPONENTS ---
+
+const PlaceholderScreen: React.FC<{ title: string; icon: React.ReactNode; message: string; onBack: () => void; }> = ({ title, icon, message, onBack }) => (
+    <div className="h-screen flex flex-col">
+        <header className="p-4 flex items-center border-b">
+            <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <h1 className="text-xl font-bold">{title}</h1>
+        </header>
+        <main className="flex-grow flex flex-col items-center justify-center text-center p-8 bg-gray-50">
+            <div className="text-gray-400 mb-4">{icon}</div>
+            <h2 className="text-2xl font-bold text-gray-700">{title} Coming Soon!</h2>
+            <p className="text-gray-500 mt-2 max-w-sm">{message}</p>
+        </main>
+    </div>
+);
+
 
 // --- AUTH & ONBOARDING COMPONENTS ---
 
@@ -104,14 +125,15 @@ const AuthScreen: React.FC = () => {
     );
 };
 
-const PET_AVATARS = [
-    'https://i.postimg.cc/Qd2P5YVs/dog-avatar.png',
-    'https://i.postimg.cc/k4mJk9gq/cat-avatar.png',
-    'https://i.postimg.cc/PqYg4bW8/puppy-avatar.png',
-    'https://i.postimg.cc/X7YxKk2W/kitten-avatar.png',
-    'https://i.postimg.cc/t4xW8gTq/paw-avatar.png',
-    'https://i.postimg.cc/MHWxLzF5/bird-avatar.png'
-];
+const PET_AVATARS = {
+    dog: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%23FBBF24" /><path d="M50 75C30 75 25 65 25 55S35 30 50 30 75 45 75 55 70 75 50 75z" fill="%23FFFFFF" /><circle cx="38" cy="48" r="5" fill="%234B5563" /><circle cx="62" cy="48" r="5" fill="%234B5563" /><path d="M50 60 L50 65" stroke="%234B5563" stroke-width="4" stroke-linecap="round" /><path d="M40 60 Q50 70 60 60" fill="none" stroke="%234B5563" stroke-width="4" stroke-linecap="round" /><path d="M25 40 Q20 25 35 25" fill="none" stroke="%23FFFFFF" stroke-width="6" stroke-linecap="round" /><path d="M75 40 Q80 25 65 25" fill="none" stroke="%23FFFFFF" stroke-width="6" stroke-linecap="round" /></svg>`,
+    cat: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%23A78BFA" /><path d="M50 75C30 75 25 65 25 55S35 30 50 30 75 45 75 55 70 75 50 75z" fill="%23FFFFFF" /><path d="M25 35 L35 20 L40 30" fill="%23FFFFFF" /><path d="M75 35 L65 20 L60 30" fill="%23FFFFFF" /><circle cx="38" cy="48" r="5" fill="%234B5563" /><circle cx="62" cy="48" r="5" fill="%234B5563" /><path d="M50 58 L50 65 M45 62 L55 62" stroke="%234B5563" stroke-width="3" stroke-linecap="round" /><path d="M30 55 L20 50 M30 60 L20 60 M70 55 L80 50 M70 60 L80 60" stroke="%23FFFFFF" stroke-width="4" stroke-linecap="round" /></svg>`,
+    bird: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%2360A5FA" /><circle cx="50" cy="55" r="25" fill="%23FFFFFF" /><circle cx="45" cy="50" r="5" fill="%231F2937" /><path d="M55 52 L65 48 L60 55 z" fill="%23FBBF24" /><path d="M30 80 Q50 70 70 80" fill="none" stroke="%23FFFFFF" stroke-width="5" /><path d="M50 30 Q55 20 60 30" fill="none" stroke="%23FBBF24" stroke-width="5" stroke-linecap="round" /></svg>`,
+    fish: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%2334D399" /><path d="M25 50 C40 30 70 30 80 50 C70 70 40 70 25 50z" fill="%23FFFFFF" /><circle cx="70" cy="50" r="4" fill="%231F2937" /><path d="M25 50 L15 40 L15 60 L25 50" fill="%23FFFFFF" /></svg>`,
+    generic: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%23F472B6" /><path d="M50 20C30 20 25 40 35 55S40 75 50 80s15-10 15-25S70 20 50 20z" fill="%23FFFFFF" /><path d="M50 40 C55 35 60 40 60 45 C60 50 50 55 50 55 S40 50 40 45 C40 40 45 35 50 40z" fill="%23F472B6" /></svg>`,
+};
+const PET_AVATAR_LIST = Object.values(PET_AVATARS);
+
 
 const ALL_BREEDS = [
   "Beagle", "Bengal Cat", "Bombay Cat", "Boxer", "British Shorthair", "Chippiparai", "Cocker Spaniel",
@@ -141,7 +163,7 @@ const ProfileSetupScreen: React.FC<{
 
     const [petData, setPetData] = useState({
         name: '',
-        photo_url: PET_AVATARS[0],
+        photo_url: PET_AVATAR_LIST[0],
         species: 'Dog',
         breed: '',
         birth_date: '',
@@ -215,7 +237,7 @@ const ProfileSetupScreen: React.FC<{
             <div>
                  <label className="block text-sm font-medium text-gray-700 mb-2">Choose an Avatar</label>
                  <div className="flex flex-wrap gap-3 justify-center">
-                    {PET_AVATARS.map(url => (
+                    {PET_AVATAR_LIST.map(url => (
                         <button key={url} type="button" onClick={() => setPetData(prev => ({...prev, photo_url: url}))} className={`h-16 w-16 rounded-full overflow-hidden transition-all duration-200 ${petData.photo_url === url ? 'ring-4 ring-offset-2 ring-teal-500 scale-110' : 'ring-2 ring-gray-200 hover:ring-teal-400'}`}>
                             <img src={url} alt="Pet Avatar" className="w-full h-full object-cover" />
                         </button>
@@ -330,7 +352,7 @@ const BottomNav: React.FC<{ onNavigate: (screen: ActiveScreen) => void; activeSc
     return (
         <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm shadow-[0_-2px_10px_rgba(0,0,0,0.05)] z-30 flex justify-around border-t">
             {navItems.map(item => (
-                <button key={item.label} onClick={() => onNavigate(item.screen as ActiveScreen)} className={`flex flex-col items-center justify-center p-2 w-full transition-colors duration-200 ${activeScreen === item.screen ? 'text-[#FF6464]' : 'text-gray-500 hover:text-gray-800'}`}>
+                <button key={item.label} onClick={() => onNavigate(item.screen as ActiveScreen)} className={`flex flex-col items-center justify-center p-2 w-full transition-colors duration-200 ${activeScreen === item.screen ? 'text-teal-500' : 'text-gray-500 hover:text-gray-800'}`}>
                     {item.icon}
                     <span className="text-xs font-medium">{item.label}</span>
                 </button>
@@ -367,7 +389,6 @@ const App: React.FC = () => {
   const [isProcessingSetup, setIsProcessingSetup] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
 
-  const imageCaptureRef = useRef<HTMLInputElement>(null);
   const userProfileRef = useRef(userProfile);
   userProfileRef.current = userProfile;
   const isCreatingProfile = useRef(false);
@@ -533,25 +554,13 @@ const App: React.FC = () => {
           { name: pet.name, breed: pet.breed, age: `${age} years` }
         );
         setHealthCheckResult(result);
-      } catch (error: any) {
+      } catch (error: any)
+      {
         setHealthCheckError(error.message);
       } finally {
         setIsCheckingHealth(false);
       }
     };
-  };
-  
-  const handleImageCapture = () => {
-    imageCaptureRef.current?.click();
-  };
-  
-  const onImageFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // For now, let's just log it. This would trigger the health check modal.
-      console.log("Image selected:", file.name);
-      setActiveModal('health');
-    }
   };
   
   const handleChatSubmit = async (message: string) => {
@@ -645,55 +654,131 @@ const App: React.FC = () => {
 
   const renderActiveScreen = () => {
     switch (activeScreen) {
-      // Define other screens here later
-      // case 'book': return <PetBookScreen ... />;
-      // case 'essentials': return <EssentialsScreen ... />;
-      // case 'vet': return <VetBookingScreen ... />;
-      // case 'profile': return <ProfileScreen ... />;
+      case 'health':
+        return <HealthCheckScreen 
+          pet={currentPet}
+          onBack={() => { 
+            setHealthCheckResult(null); 
+            setHealthCheckError(null); 
+            setActiveScreen('home');
+          }}
+          onAnalyze={handleHealthCheck}
+          isChecking={isCheckingHealth}
+          result={healthCheckResult}
+          error={healthCheckError}
+        />;
+      case 'book':
+        return <PlaceholderScreen 
+          title="Pet Book" 
+          icon={ICONS.PET_BOOK}
+          message="Keep a digital diary of your pet's life. Track milestones, store memories, and view health records all in one place."
+          onBack={() => setActiveScreen('home')}
+        />;
+      case 'essentials':
+        return <PlaceholderScreen 
+          title="Pet Essentials" 
+          icon={ICONS.PET_ESSENTIALS}
+          message="Shop our curated selection of high-quality food, fun toys, grooming supplies, and essential pet-care products."
+          onBack={() => setActiveScreen('home')}
+        />;
+      case 'vet':
+        return <PlaceholderScreen 
+          title="Book a Vet" 
+          icon={ICONS.VET_BOOKING}
+          message="Find trusted veterinarians in your area, view their profiles, and book appointments directly through the app."
+          onBack={() => setActiveScreen('home')}
+        />;
+      case 'profile':
+          const ProfileScreen: React.FC = () => (
+            <div className="h-screen flex flex-col">
+                 <header className="p-4 flex items-center border-b bg-white sticky top-0">
+                    <button onClick={() => setActiveScreen('home')} className="mr-4 text-gray-600 hover:text-gray-900">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <h1 className="text-xl font-bold">Profile</h1>
+                </header>
+                <main className="flex-grow bg-gray-50 p-6 space-y-6">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm text-center">
+                        <img src={currentPet?.photo_url || PET_AVATARS.generic} alt="Profile" className="w-24 h-24 rounded-full mx-auto -mt-16 border-4 border-white shadow-lg" />
+                        <h2 className="text-2xl font-bold mt-4">{userProfile.name}</h2>
+                        <p className="text-gray-500">{userProfile.email}</p>
+                    </div>
+                    
+                    <div className="bg-white p-6 rounded-2xl shadow-sm">
+                        <h3 className="font-bold text-lg mb-4">Your Details</h3>
+                        <div className="space-y-2 text-gray-700">
+                            <p><strong>Phone:</strong> {userProfile.phone}</p>
+                            <p><strong>City:</strong> {userProfile.city}</p>
+                        </div>
+                    </div>
+                    
+                     {currentPet && (
+                        <div className="bg-white p-6 rounded-2xl shadow-sm">
+                            <h3 className="font-bold text-lg mb-4">Pet Details</h3>
+                            <div className="space-y-2 text-gray-700">
+                                <p><strong>Name:</strong> {currentPet.name}</p>
+                                <p><strong>Species:</strong> {currentPet.species}</p>
+                                <p><strong>Breed:</strong> {currentPet.breed}</p>
+                                <p><strong>Gender:</strong> {currentPet.gender}</p>
+                                <p><strong>Born:</strong> {new Date(currentPet.birth_date).toLocaleDateString()}</p>
+                            </div>
+                        </div>
+                    )}
+                    
+                    <button onClick={handleLogout} className="w-full text-center py-3 bg-red-100 text-red-600 font-bold rounded-lg hover:bg-red-200 transition-colors">
+                      Log Out
+                    </button>
+                </main>
+            </div>
+          );
+          return <ProfileScreen />;
       default:
         return (
-          <main className="container mx-auto p-4 pb-24">
-            <div className="text-center mb-8">
-                <img src={currentPet?.photo_url} alt={currentPet?.name} className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-white shadow-lg" />
-                <h2 className="text-3xl font-bold text-gray-800">Hi, {userProfile.name}!</h2>
-                <p className="text-gray-600 text-lg">How can Dumble help {currentPet?.name || 'your pet'} today?</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FeatureCard
-                title="AI Health Check"
-                description="Snap a photo for a quick wellness scan."
-                icon={ICONS.HEALTH_CHECK}
-                color="bg-teal-100"
-                textColor="text-teal-800"
-                onClick={() => setActiveModal('health')}
-                disabled={!currentPet}
-              />
-              <FeatureCard
-                title="Book a Vet"
-                description="Find and schedule appointments nearby."
-                icon={ICONS.VET_BOOKING}
-                color="bg-cyan-100"
-                textColor="text-cyan-800"
-                onClick={() => setActiveScreen('vet')}
-              />
-              <FeatureCard
-                title="Pet Essentials"
-                description="Shop for curated food, toys, and more."
-                icon={ICONS.PET_ESSENTIALS}
-                color="bg-rose-100"
-                textColor="text-rose-800"
-                onClick={() => setActiveScreen('essentials')}
-              />
-              <FeatureCard
-                title="Pet Book"
-                description="A digital diary of your pet's life."
-                icon={ICONS.PET_BOOK}
-                color="bg-amber-100"
-                textColor="text-amber-800"
-                onClick={() => setActiveScreen('book')}
-              />
-            </div>
-          </main>
+          <>
+            <Header onProfileClick={() => setActiveScreen('profile')} />
+            <main className="container mx-auto p-4 pb-24">
+              <div className="text-center mb-8">
+                  <img src={currentPet?.photo_url} alt={currentPet?.name} className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-white shadow-lg object-cover" />
+                  <h2 className="text-3xl font-bold text-gray-800">Hi, {userProfile.name}!</h2>
+                  <p className="text-gray-600 text-lg">How can Dumble help {currentPet?.name || 'your pet'} today?</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FeatureCard
+                  title="AI Health Check"
+                  description="Snap a photo for a quick wellness scan."
+                  icon={ICONS.HEALTH_CHECK}
+                  color="bg-teal-100"
+                  textColor="text-teal-800"
+                  onClick={() => setActiveScreen('health')}
+                  disabled={!currentPet}
+                />
+                <FeatureCard
+                  title="Book a Vet"
+                  description="Find and schedule appointments nearby."
+                  icon={ICONS.VET_BOOKING}
+                  color="bg-cyan-100"
+                  textColor="text-cyan-800"
+                  onClick={() => setActiveScreen('vet')}
+                />
+                <FeatureCard
+                  title="Pet Essentials"
+                  description="Shop for curated food, toys, and more."
+                  icon={ICONS.PET_ESSENTIALS}
+                  color="bg-rose-100"
+                  textColor="text-rose-800"
+                  onClick={() => setActiveScreen('essentials')}
+                />
+                <FeatureCard
+                  title="Pet Book"
+                  description="A digital diary of your pet's life."
+                  icon={ICONS.PET_BOOK}
+                  color="bg-amber-100"
+                  textColor="text-amber-800"
+                  onClick={() => setActiveScreen('book')}
+                />
+              </div>
+            </main>
+          </>
         );
     }
   };
@@ -702,105 +787,6 @@ const App: React.FC = () => {
     if (!activeModal) return null;
     
     switch (activeModal) {
-      case 'health':
-        const HealthCheckContent: React.FC = () => {
-          const [photo, setPhoto] = useState<File | null>(null);
-          const [notes, setNotes] = useState('');
-          const fileInputRef = useRef<HTMLInputElement>(null);
-
-          const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-              if (e.target.files?.[0]) {
-                  setPhoto(e.target.files[0]);
-              }
-          };
-          
-          const handleSubmit = (e: React.FormEvent) => {
-              e.preventDefault();
-              if (photo) {
-                  handleHealthCheck(photo, notes);
-              }
-          }
-
-          if (isCheckingHealth) {
-              return (
-                <div className="text-center p-8">
-                  <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div>
-                  <h3 className="text-xl font-semibold mt-4">Dumble is analyzing...</h3>
-                  <p className="text-gray-600">This might take a moment. We're checking for any signs we should pay attention to.</p>
-                </div>
-              );
-          }
-          
-          if (healthCheckError) {
-              return (
-                <div className="text-center p-8">
-                    <div className="text-5xl mb-4">😢</div>
-                    <h3 className="text-xl font-bold text-red-600">Analysis Failed</h3>
-                    <p className="text-gray-600 mb-4">{healthCheckError}</p>
-                    <button onClick={() => { setHealthCheckError(null); setPhoto(null); }} className="bg-teal-500 text-white font-bold py-2 px-4 rounded-lg">Try Again</button>
-                </div>
-              );
-          }
-          
-          if (healthCheckResult) {
-            return (
-                <div>
-                    <h3 className="text-2xl font-bold text-center text-gray-800 mb-4">Wellness Card for {currentPet?.name}</h3>
-                    <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-                        <p><strong>Breed Match:</strong> {healthCheckResult.breed}</p>
-                        <p><strong>Health Analysis:</strong> {healthCheckResult.healthAnalysis}</p>
-                        <div>
-                            <strong>Care Tips:</strong>
-                            <ul className="list-disc list-inside ml-4">
-                                {healthCheckResult.careTips.map((tip, i) => <li key={i}>{tip}</li>)}
-                            </ul>
-                        </div>
-                        {healthCheckResult.vetRecommendation && <div className="p-3 bg-red-100 text-red-800 rounded-lg font-semibold">⚠️ We recommend a quick visit to the vet.</div>}
-                        {healthCheckResult.groomingRecommendation && <div className="p-3 bg-blue-100 text-blue-800 rounded-lg font-semibold">🛁 A grooming session might be a good idea!</div>}
-                        {healthCheckResult.productRecommendations.length > 0 && <div>
-                            <strong>Suggested Products:</strong>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                                {healthCheckResult.productRecommendations.map((prod, i) => <span key={i} className="bg-gray-200 text-gray-700 px-2 py-1 rounded-full text-sm">{prod}</span>)}
-                            </div>
-                        </div>}
-                    </div>
-                     <button onClick={() => { setHealthCheckResult(null); setPhoto(null); }} className="w-full mt-4 bg-teal-500 text-white font-bold py-2 px-4 rounded-lg">Check Another Photo</button>
-                </div>
-            );
-          }
-
-          return (
-            <form onSubmit={handleSubmit}>
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2">Upload or Take a Photo</label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:bg-gray-50" onClick={() => fileInputRef.current?.click()}>
-                    <input type="file" accept="image/*" capture="environment" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-                    {photo ? (
-                        <div>
-                            <img src={URL.createObjectURL(photo)} alt="Pet preview" className="max-h-40 mx-auto rounded-lg" />
-                            <p className="mt-2 text-sm text-gray-600">{photo.name}</p>
-                        </div>
-                    ) : (
-                        <div>
-                            <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>
-                            <p className="mt-2">Click to upload an image</p>
-                            <p className="text-xs text-gray-500">PNG, JPG up to 10MB</p>
-                        </div>
-                    )}
-                </div>
-              </div>
-               <div className="mb-4">
-                  <label htmlFor="notes" className="block text-gray-700 text-sm font-bold mb-2">Any specific concerns?</label>
-                  <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-teal-500" placeholder="e.g., 'He's been scratching his ear a lot.'"></textarea>
-               </div>
-              <button type="submit" disabled={!photo} className="w-full bg-teal-500 text-white font-bold py-3 px-4 rounded-xl text-lg hover:opacity-90 transition-opacity shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                Analyze Pet Health
-              </button>
-            </form>
-          );
-        };
-        return <Modal title="AI Health Check" onClose={() => setActiveModal(null)}><HealthCheckContent /></Modal>;
-      
       case 'chat':
         const ChatContent: React.FC = () => {
             const [newMessage, setNewMessage] = useState('');
@@ -826,7 +812,7 @@ const App: React.FC = () => {
                                {msg.sender === 'model' && <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center text-white text-lg flex-shrink-0">D</div>}
                                <div
                                    className={`max-w-xs md:max-w-md p-3 rounded-2xl ${msg.sender === 'user' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-200 text-gray-800 rounded-bl-none'}`}
-                                   dangerouslySetInnerHTML={{ __html: marked(msg.message) }}
+                                   dangerouslySetInnerHTML={{ __html: marked.parse(msg.message) }}
                                />
                            </div>
                        ))}
@@ -867,28 +853,28 @@ const App: React.FC = () => {
   };
   
 
+  const showHeaderAndNav = activeScreen === 'home';
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800">
-      <Header onProfileClick={() => setActiveScreen('profile')} />
-
       {renderActiveScreen()}
       {renderModal()}
       
-      {/* Floating Chat Button */}
-      <button 
-        onClick={() => setActiveModal('chat')}
-        className="fixed bottom-24 right-4 bg-gradient-to-r from-[#FF6464] to-red-500 text-white rounded-full p-4 shadow-lg transform transition-transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-red-300"
-        aria-label="Open Chat"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2zM7 8H5v2h2V8zm2 0h2v2H9V8zm6 0h-2v2h2V8z" clipRule="evenodd" />
-        </svg>
-      </button>
-
-      <BottomNav onNavigate={setActiveScreen} activeScreen={activeScreen} />
-      
-      {/* Hidden file input for camera access */}
-      <input type="file" accept="image/*" capture="environment" ref={imageCaptureRef} onChange={onImageFileSelected} style={{ display: 'none' }} />
+      {showHeaderAndNav && (
+        <>
+            {/* Floating Chat Button */}
+            <button 
+              onClick={() => setActiveModal('chat')}
+              className="fixed bottom-24 right-4 bg-gradient-to-r from-[#FF6464] to-red-500 text-white rounded-full p-4 shadow-lg transform transition-transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-red-300 z-30"
+              aria-label="Open Chat"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2zM7 8H5v2h2V8zm2 0h2v2H9V8zm6 0h-2v2h2V8z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <BottomNav onNavigate={setActiveScreen} activeScreen={activeScreen} />
+        </>
+      )}
     </div>
   );
 };

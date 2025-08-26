@@ -6,6 +6,10 @@ export interface UserProfile {
   email: string;
   phone: string;
   city: string;
+  role?: 'user' | 'admin';
+  interests?: string[]; // e.g., ["Dog parks", "Hiking", "Puppy training"]
+  verified?: boolean;
+  emergency_contact?: { name: string; phone: string; };
 }
 
 export interface Pet {
@@ -13,10 +17,13 @@ export interface Pet {
   auth_user_id: string;
   name: string;
   photo_url: string;
-  species: string;
+  species: 'Dog' | 'Cat';
   breed: string;
   birth_date: string; // ISO Date string
   gender: 'Male' | 'Female' | 'Unknown';
+  size: 'Small' | 'Medium' | 'Large' | 'Extra Large';
+  energy_level: 'Low' | 'Medium' | 'High';
+  temperament: string[]; // e.g., ["Friendly with kids", "Good with other dogs"]
   notes?: string;
 }
 
@@ -77,6 +84,7 @@ export interface PetbookPost {
   content: string;
   image_url?: string;
   created_at: string;
+  post_type: 'general' | 'adoption_story' | 'tip' | 'tribute';
 }
 
 // The result from the Gemini health check analysis
@@ -141,10 +149,10 @@ export interface AdoptionListing {
   story?: string;
   good_with: ('Children' | 'Dogs' | 'Cats')[];
   special_needs?: string[];
-  status: 'Available' | 'Pending' | 'Adopted';
+  status: 'Pending Approval' | 'Available' | 'Pending' | 'Adopted' | 'Rejected';
   created_at: string;
   // Joined data for UI display
-  shelter?: Shelter;
+  shelter?: Shelter | { name: string; city: string; };
 }
 
 // This type represents the data returned by the 'nearby_pets' RPC
@@ -153,9 +161,35 @@ export interface AdoptablePet extends Omit<AdoptionListing, 'shelter'> {
   shelter_name: string;
 }
 
+export interface AdoptionApplication {
+  id: string;
+  auth_user_id: string;
+  listing_id: string;
+  shelter_id: string;
+  status: 'Submitted' | 'In Review' | 'Interview Scheduled' | 'Approved' | 'Rejected' | 'Withdrawn';
+  submitted_at: string;
+  application_data: {
+    residenceType: 'Own' | 'Rent';
+    homeType: 'House' | 'Apartment' | 'Other';
+    hasYard: boolean;
+    timeAlone: string;
+    experience: 'First-time' | 'Experienced';
+    motivation: string;
+  };
+  document_url?: string;
+  // For UI display
+  listing?: Pick<AdoptionListing, 'name' | 'photos' | 'breed'>;
+}
+
+
+// --- SOCIAL & CONNECT ---
+export interface ConnectProfile extends UserProfile {
+    pets: Pet[];
+}
+
 
 export type ActiveModal = 'chat' | null;
-export type ActiveScreen = 'home' | 'book' | 'essentials' | 'vet' | 'profile' | 'health' | 'adoption';
+export type ActiveScreen = 'home' | 'book' | 'connect' | 'vet' | 'profile' | 'health' | 'adoption' | 'admin' | 'essentials' | 'petDetail' | 'adoptionApplication' | 'myApplications' | 'safetyCenter';
 
 // This type matches the Gemini SDK's expectation for chat history
 export interface GeminiChatMessage {
@@ -187,6 +221,7 @@ export interface EncyclopediaTopic {
     climateSuitability: string; // e.g., "Tolerates heat well, but needs shade."
     funFactsIndia: string[];
     adoptionInfoIndia: string;
+    adoptionStatus: 'Available' | 'Pending' | 'Adopted';
     size: 'small' | 'medium' | 'large';
     familyFriendly: boolean;
     hypoallergenic: boolean;

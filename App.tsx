@@ -1,7 +1,7 @@
 // Trigger Vercel deployment
 // FIX: Imported useState, useEffect, and useRef from React to resolve hook-related errors.
 import React, { useState, useEffect, useRef } from 'react';
-import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Vet, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile, ActiveScreen, AdoptionListing, AdoptablePet } from './types';
+import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Vet, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile, ActiveScreen, AdoptionListing, AdoptablePet, Shelter, ConnectProfile, AdoptionApplication } from './types';
 import { ICONS } from './constants';
 import * as geminiService from './services/geminiService';
 import { supabase } from './services/supabaseClient';
@@ -10,7 +10,6 @@ import { Session, User, Provider } from '@supabase/supabase-js';
 import EnvironmentVariablePrompt from './components/ApiKeyPrompt';
 import HealthCheckScreen from './components/HealthCheckScreen';
 import PetBookScreen from './components/PetBookScreen';
-import ShopScreen from './components/ShopScreen';
 import ProfileScreen from './components/ProfileScreen';
 import HomeScreen from './components/HomeScreen';
 import BottomNav from './components/BottomNav';
@@ -18,12 +17,403 @@ import OnboardingProfileScreen from './components/OnboardingProfileScreen';
 import OnboardingPetScreen from './components/OnboardingPetScreen';
 import WelcomeScreen from './components/WelcomeScreen';
 import OnboardingCompletionScreen from './components/OnboardingCompletionScreen';
+// FIX: Import the ShopScreen component to render the pet essentials marketplace.
+import ShopScreen from './components/ShopScreen';
 import { marked } from 'marked';
+import SafetyCenterScreen from './components/SafetyCenterScreen';
+
+// --- CONNECT SCREEN IMPLEMENTATION ---
+const ConnectScreen: React.FC<{ currentUserProfile: UserProfile | null; currentUser: User | null; }> = ({ currentUserProfile, currentUser }) => {
+    const [profiles, setProfiles] = useState<ConnectProfile[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+    
+    // New state for modals and menus
+    const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
+    const [reportingUser, setReportingUser] = useState<ConnectProfile | null>(null);
+    const [showMeetupModal, setShowMeetupModal] = useState<ConnectProfile | null>(null);
+
+    useEffect(() => {
+        const fetchBlockedUsersAndProfiles = async () => {
+            if (!currentUserProfile?.city || !currentUser) {
+                setError("Set your city in your profile to find pet parents near you.");
+                setLoading(false);
+                return;
+            }
+
+            setLoading(true);
+            setError(null);
+
+            try {
+                // 1. Fetch blocked users
+                const { data: blockedData, error: blockedError } = await supabase
+                    .from('blocked_users')
+                    .select('blocked_user_id')
+                    .eq('blocker_user_id', currentUser.id);
+                
+                if (blockedError) throw blockedError;
+                const blockedIds = (blockedData || []).map(b => b.blocked_user_id);
+                setBlockedUserIds(blockedIds);
+
+                // 2. Fetch profiles, excluding self and blocked users
+                // Note: Supabase RLS should prevent blocked users from seeing the blocker, but explicit filtering is safer.
+                const { data, error: fetchError } = await supabase
+                    .from('user_profiles')
+                    .select(`*, pets:pets(*)`)
+                    .eq('city', currentUserProfile.city)
+                    .neq('auth_user_id', currentUserProfile.auth_user_id)
+                    .not('auth_user_id', 'in', `(${blockedIds.length > 0 ? blockedIds.map(id => `'${id}'`).join(',') : `''`})`)
+                    .limit(50);
+
+                if (fetchError) throw fetchError;
+                setProfiles((data as ConnectProfile[]).filter(p => p.pets.length > 0));
+            } catch (err: any) {
+                setError("Failed to load profiles. Please try again later.");
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (currentUserProfile && currentUser) {
+            fetchBlockedUsersAndProfiles();
+        }
+    }, [currentUserProfile, currentUser]);
+
+    const handleBlockUser = async (profileToBlock: ConnectProfile) => {
+        if (!currentUser) return;
+        
+        const isConfirmed = window.confirm(`Are you sure you want to block ${profileToBlock.name}? You will no longer see each other's profiles.`);
+        if (!isConfirmed) return;
+
+        setMenuOpenFor(null);
+        // Optimistic update
+        setProfiles(profiles.filter(p => p.auth_user_id !== profileToBlock.auth_user_id));
+
+        const { error: blockError } = await supabase.from('blocked_users').insert({
+            blocker_user_id: currentUser.id,
+            blocked_user_id: profileToBlock.auth_user_id,
+        });
+
+        if (blockError) {
+            setError(`Failed to block user: ${blockError.message}`);
+            // Revert optimistic update on error
+            setProfiles(currentProfiles => [...currentProfiles, profileToBlock].sort((a, b) => a.name.localeCompare(b.name)));
+        }
+    };
+    
+    const handleReportUser = (profileToReport: ConnectProfile) => {
+        setReportingUser(profileToReport);
+        setMenuOpenFor(null);
+    };
+
+    const ReportUserModal: React.FC<{user: ConnectProfile, onCancel: () => void, currentUser: User | null}> = ({ user, onCancel, currentUser }) => {
+        const [reason, setReason] = useState('');
+        const [details, setDetails] = useState('');
+        const [isSubmitting, setIsSubmitting] = useState(false);
+        const [submitted, setSubmitted] = useState(false);
+
+        const handleSubmit = async () => {
+            if (!reason || !currentUser) return;
+            setIsSubmitting(true);
+            const { error } = await supabase.from('reports').insert({
+                reporter_user_id: currentUser.id,
+                reported_user_id: user.auth_user_id,
+                reason,
+                details,
+            });
+            setIsSubmitting(false);
+            if (error) {
+                alert(`Failed to submit report: ${error.message}`);
+            } else {
+                setSubmitted(true);
+            }
+        };
+
+        if (submitted) {
+            return (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-sm text-center">
+                        <h3 className="text-lg font-bold">Report Submitted</h3>
+                        <p className="text-sm text-gray-600 mt-2">Thank you for helping keep our community safe. Our team will review your report shortly.</p>
+                        <button onClick={onCancel} className="mt-4 w-full bg-teal-500 text-white font-bold py-2 rounded-lg">Close</button>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-lg p-6 w-full max-w-sm">
+                    <h3 className="text-lg font-bold">Report {user.name}</h3>
+                    <select value={reason} onChange={e => setReason(e.target.value)} className="w-full mt-4 p-2 border rounded-md bg-white">
+                        <option value="">Select a reason...</option>
+                        <option value="inappropriate_profile">Inappropriate Profile/Photos</option>
+                        <option value="spam">Spam or Scam</option>
+                        <option value="harassment">Harassment or Hate Speech</option>
+                        <option value="other">Other</option>
+                    </select>
+                    <textarea value={details} onChange={e => setDetails(e.target.value)} placeholder="Provide additional details (optional)" rows={3} className="w-full mt-2 p-2 border rounded-md"></textarea>
+                    <div className="flex gap-4 mt-4">
+                        <button onClick={onCancel} className="w-full bg-gray-200 text-gray-700 font-bold py-2 rounded-lg">Cancel</button>
+                        <button onClick={handleSubmit} disabled={!reason || isSubmitting} className="w-full bg-red-500 text-white font-bold py-2 rounded-lg disabled:opacity-50">{isSubmitting ? 'Submitting...' : 'Submit Report'}</button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const SafeMeetupModal: React.FC<{user: ConnectProfile, onCancel: () => void}> = ({ user, onCancel }) => {
+        const safeSpots = ["Cubbon Park Dog Park", "The Pet People Cafe", "Lalbagh Botanical Garden (Designated Areas)"];
+        
+        return (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-lg p-6 w-full max-w-sm">
+                     <h3 className="text-lg font-bold text-center">Plan a Safe Playdate!</h3>
+                     <p className="text-sm text-gray-600 mt-2 text-center">For everyone's safety, we recommend meeting at a public, pet-friendly location.</p>
+                     <div className="mt-4 space-y-2">
+                        <p className="font-semibold text-sm">Suggested locations near you:</p>
+                        <ul className="list-disc list-inside bg-gray-50 p-3 rounded-md">
+                            {safeSpots.map(spot => <li key={spot}>{spot}</li>)}
+                        </ul>
+                     </div>
+                     <button onClick={() => { alert(`A playdate request has been sent to ${user.name}!`); onCancel(); }} className="mt-4 w-full bg-teal-500 text-white font-bold py-2 rounded-lg">Send Playdate Request</button>
+                     <button onClick={onCancel} className="mt-2 w-full text-sm text-gray-500 font-semibold">Cancel</button>
+                </div>
+            </div>
+        );
+    };
+
+    const VerifiedBadge = () => (
+        <div className="flex items-center gap-1 bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full text-xs font-semibold">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+            Verified
+        </div>
+    );
+
+    const UserCard: React.FC<{ profile: ConnectProfile }> = ({ profile }) => (
+        <div className="bg-white rounded-xl shadow-md overflow-hidden group transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+            <div className="p-4">
+                <div className="flex items-start gap-4">
+                    <div className="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center text-teal-600 font-bold text-2xl flex-shrink-0">
+                        {profile.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-grow">
+                        <div className="flex justify-between items-start">
+                             <div>
+                                <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">{profile.name} {profile.verified && <VerifiedBadge />}</h3>
+                                <p className="text-sm text-gray-500">{profile.city}</p>
+                             </div>
+                             <div className="relative">
+                                <button onClick={() => setMenuOpenFor(menuOpenFor === profile.auth_user_id ? null : profile.auth_user_id)} className="text-gray-400 hover:text-gray-600 p-1" aria-label="More options">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
+                                </button>
+                                {menuOpenFor === profile.auth_user_id && (
+                                    <div className="absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg z-20" onMouseLeave={() => setMenuOpenFor(null)}>
+                                        <button onClick={() => handleReportUser(profile)} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Report User</button>
+                                        <button onClick={() => handleBlockUser(profile)} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100">Block User</button>
+                                    </div>
+                                )}
+                             </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-2">
+                            {(profile.interests || []).slice(0, 3).map(interest => (
+                                <span key={interest} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{interest}</span>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {profile.pets.length > 0 && (
+                 <div className="flex gap-2 px-4 pb-4 overflow-x-auto">
+                    {profile.pets.map(pet => (
+                        <div key={pet.id} className="flex-shrink-0 text-center w-20">
+                           <img src={pet.photo_url} alt={pet.name} className="w-16 h-16 rounded-full object-cover mx-auto border-2 border-white shadow-sm" />
+                           <p className="text-xs font-semibold text-gray-700 mt-1 truncate">{pet.name}</p>
+                           <p className="text-xs text-gray-500">{pet.breed}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+            <div className="p-3 bg-gray-50 border-t">
+                <button onClick={() => setShowMeetupModal(profile)} className="w-full bg-teal-500 text-white font-bold text-sm py-2 rounded-lg hover:bg-teal-600 transition-colors">
+                    Request Playdate
+                </button>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="min-h-screen flex flex-col bg-gray-100">
+            <header className="p-4 border-b bg-white sticky top-0 z-10">
+                <h1 className="text-xl font-bold text-center">Connect with Pet Parents</h1>
+            </header>
+            <main className="flex-grow p-4">
+                {loading && <div className="text-center p-8"><div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div><p className="mt-2 text-gray-600">Finding friends...</p></div>}
+                {error && <div className="bg-yellow-50 text-yellow-800 p-4 rounded-lg text-center">{error}</div>}
+                {!loading && !error && profiles.length === 0 && (
+                    <div className="text-center text-gray-500 pt-16">
+                        <p className="font-semibold">No one's here yet!</p>
+                        <p>No other pet parents found in your city. Be the first to start the community!</p>
+                    </div>
+                )}
+                {!loading && profiles.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {profiles.map(p => <UserCard key={p.auth_user_id} profile={p} />)}
+                    </div>
+                )}
+            </main>
+            {reportingUser && <ReportUserModal user={reportingUser} onCancel={() => setReportingUser(null)} currentUser={currentUser}/>}
+            {showMeetupModal && <SafeMeetupModal user={showMeetupModal} onCancel={() => setShowMeetupModal(null)} />}
+        </div>
+    );
+};
+
+
+// --- ADMIN DASHBOARD IMPLEMENTATION ---
+
+const AdminDashboardScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+    type AdminTab = 'shelters' | 'listings';
+    const [activeTab, setActiveTab] = useState<AdminTab>('listings');
+    const [shelters, setShelters] = useState<Shelter[]>([]);
+    const [pendingListings, setPendingListings] = useState<AdoptionListing[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const fetchData = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const [sheltersRes, listingsRes] = await Promise.all([
+                supabase.from('shelters').select('*').order('verified', { ascending: true }),
+                supabase.from('adoption_listings').select('*, shelter:shelters(name)').eq('status', 'Pending Approval')
+            ]);
+
+            if (sheltersRes.error) throw new Error(`Shelters: ${sheltersRes.error.message}`);
+            if (listingsRes.error) throw new Error(`Listings: ${listingsRes.error.message}`);
+
+            setShelters(sheltersRes.data || []);
+            setPendingListings(listingsRes.data as any[] || []);
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const handleShelterVerify = async (shelterId: string, newStatus: boolean) => {
+        const originalShelters = [...shelters];
+        // Optimistic UI update
+        setShelters(shelters.map(s => s.id === shelterId ? { ...s, verified: newStatus } : s));
+        const { error: updateError } = await supabase.from('shelters').update({ verified: newStatus }).eq('id', shelterId);
+        if (updateError) {
+            setError(`Failed to update shelter: ${updateError.message}`);
+            setShelters(originalShelters); // Revert on error
+        }
+    };
+
+    const handleListingApproval = async (listingId: string, newStatus: 'Available' | 'Rejected') => {
+        const originalListings = [...pendingListings];
+        setPendingListings(pendingListings.filter(l => l.id !== listingId));
+        const { error: updateError } = await supabase.from('adoption_listings').update({ status: newStatus }).eq('id', listingId);
+        if (updateError) {
+            setError(`Failed to update listing: ${updateError.message}`);
+            setPendingListings(originalListings);
+        }
+    };
+    
+    const ShelterRow: React.FC<{ shelter: Shelter }> = ({ shelter }) => (
+        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div>
+                <p className="font-semibold text-gray-800">{shelter.name}</p>
+                <p className="text-sm text-gray-500">{shelter.city}</p>
+            </div>
+            <div className="flex items-center space-x-2">
+                <span className={`text-xs font-bold ${shelter.verified ? 'text-green-600' : 'text-gray-500'}`}>
+                    {shelter.verified ? 'Verified' : 'Unverified'}
+                </span>
+                <button
+                    onClick={() => handleShelterVerify(shelter.id, !shelter.verified)}
+                    className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${shelter.verified ? 'bg-teal-500' : 'bg-gray-300'}`}
+                >
+                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${shelter.verified ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+            </div>
+        </div>
+    );
+    
+    const ListingCard: React.FC<{ listing: AdoptionListing }> = ({ listing }) => (
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <img src={listing.photos[0]} alt={listing.name} className="w-full h-32 object-cover" />
+            <div className="p-3">
+                <h4 className="font-bold">{listing.name} <span className="font-normal text-sm text-gray-500">({listing.breed})</span></h4>
+                <p className="text-xs text-gray-600 mb-2">From: {(listing.shelter as any)?.name || 'Unknown Shelter'}</p>
+                <p className="text-sm text-gray-700 line-clamp-2">{listing.description}</p>
+            </div>
+            <div className="p-2 border-t flex gap-2">
+                <button onClick={() => handleListingApproval(listing.id, 'Rejected')} className="w-full bg-red-100 text-red-700 font-bold py-1.5 rounded-md hover:bg-red-200 text-sm">Reject</button>
+                <button onClick={() => handleListingApproval(listing.id, 'Available')} className="w-full bg-green-100 text-green-700 font-bold py-1.5 rounded-md hover:bg-green-200 text-sm">Approve</button>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="min-h-screen flex flex-col bg-gray-100">
+            <header className="p-4 flex items-center border-b bg-white sticky top-0 z-20">
+                <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <h1 className="text-xl font-bold">Admin Dashboard</h1>
+            </header>
+
+            <div className="p-2 bg-white border-b sticky top-[65px] z-10">
+                <div className="flex bg-gray-100 rounded-lg p-1">
+                    <button onClick={() => setActiveTab('listings')} className={`w-full p-2 text-sm font-semibold rounded-md transition-colors ${activeTab === 'listings' ? 'bg-teal-500 text-white shadow' : 'text-gray-600'}`}>
+                        Listings ({pendingListings.length})
+                    </button>
+                    <button onClick={() => setActiveTab('shelters')} className={`w-full p-2 text-sm font-semibold rounded-md transition-colors ${activeTab === 'shelters' ? 'bg-teal-500 text-white shadow' : 'text-gray-600'}`}>
+                        Shelters ({shelters.length})
+                    </button>
+                </div>
+            </div>
+            
+            <main className="flex-grow p-4">
+                 {loading && <div className="text-center p-8"><div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div><p className="mt-2 text-gray-600">Loading data...</p></div>}
+                 {error && <div className="bg-red-50 text-red-700 p-4 rounded-lg text-center">{error}</div>}
+                 
+                 {!loading && !error && (
+                    <>
+                        {activeTab === 'shelters' && (
+                            <div className="space-y-3">
+                                {shelters.map(s => <ShelterRow key={s.id} shelter={s} />)}
+                            </div>
+                        )}
+                        {activeTab === 'listings' && (
+                            pendingListings.length > 0 ? (
+                                <div className="grid grid-cols-2 gap-4">
+                                    {pendingListings.map(l => <ListingCard key={l.id} listing={l} />)}
+                                </div>
+                            ) : (
+                                <div className="text-center text-gray-500 pt-16">
+                                    <p className="font-semibold">All caught up!</p>
+                                    <p>There are no new listings to review.</p>
+                                </div>
+                            )
+                        )}
+                    </>
+                 )}
+            </main>
+        </div>
+    );
+};
+
 
 // --- ADOPTION SCREEN IMPLEMENTATION ---
-
-// This entire section defines the new Adoption feature. It's placed here to avoid creating new files.
-
 const MOCK_ADOPTION_LISTINGS: AdoptionListing[] = [
   { id: '1', name: 'Buddy', species: 'Dog', breed: 'Indie', age: 'Young', size: 'Medium', gender: 'Male', photos: ['https://i.ibb.co/6rC6hJq/indie-dog-1.jpg'], description: 'A friendly and energetic indie dog looking for a loving home. Loves to play fetch!', good_with: ['Children', 'Dogs'], shelter_id: '1', status: 'Available', created_at: new Date().toISOString(), shelter: { id: '1', name: 'Hope for Paws', city: 'Mumbai', address: '', phone: '', email: '', verified: true, location: {} } },
   { id: '2', name: 'Luna', species: 'Cat', breed: 'Bombay Cat', age: 'Adult', size: 'Small', gender: 'Female', photos: ['https://i.ibb.co/zntgK4B/bombay-cat-1.jpg'], description: 'A calm and affectionate cat who loves to cuddle. She is litter trained and very clean.', good_with: ['Cats'], shelter_id: '2', status: 'Available', created_at: new Date().toISOString(), shelter: { id: '2', name: 'Cat Haven', city: 'Delhi', address: '', phone: '', email: '', verified: true, location: {} } },
@@ -38,7 +428,7 @@ const PetAdoptionCard: React.FC<{ pet: AdoptablePet }> = ({ pet }) => {
             <div className="relative aspect-[4/3]">
                 <img src={pet.photos[0]} alt={pet.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                 <button 
-                    onClick={() => setIsFavorited(!isFavorited)}
+                    onClick={(e) => { e.stopPropagation(); setIsFavorited(!isFavorited); }}
                     className="absolute top-2 right-2 bg-white/70 backdrop-blur-sm p-2 rounded-full text-gray-700 hover:text-red-500 transition-colors"
                     aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
                     aria-pressed={isFavorited}
@@ -67,12 +457,11 @@ const PetAdoptionCard: React.FC<{ pet: AdoptablePet }> = ({ pet }) => {
     );
 };
 
-const AdoptionScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string) => void; }> = ({ onBack, onSelectPet }) => {
     const [listings, setListings] = useState<AdoptablePet[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
-    const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
     const [showFilters, setShowFilters] = useState(false);
     
     // Filter states
@@ -93,7 +482,6 @@ const AdoptionScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             (geoError) => {
                 console.warn("Geolocation error:", geoError.message);
                 setError("Could not get your location. Please enable location services to find nearby pets. Showing sample data for now.");
-                // Fallback to mock data with a structure that matches AdoptablePet
                 const mockAdoptablePets: AdoptablePet[] = MOCK_ADOPTION_LISTINGS.map(p => ({
                     ...p,
                     distance_km: Math.random() * 50,
@@ -108,7 +496,7 @@ const AdoptionScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     // Fetch data from Supabase
     useEffect(() => {
         const fetchListings = async () => {
-            if (!userLocation) return;
+            if (!userLocation && MOCK_ADOPTION_LISTINGS.length > 0) return; // Don't refetch if using mock data
             if (!supabase) {
                  setError("Database connection is not available.");
                  setLoading(false);
@@ -118,18 +506,19 @@ const AdoptionScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             setLoading(true);
             setError(null);
             
-            const { data, error: rpcError } = await supabase.rpc('nearby_pets', {
-                lat: userLocation.lat,
-                long: userLocation.lon,
-                radius_km: distance
-            });
+            const rpcParams: any = { radius_km: distance };
+            if (userLocation) {
+                rpcParams.lat = userLocation.lat;
+                rpcParams.long = userLocation.lon;
+            }
+
+            const { data, error: rpcError } = await supabase.rpc('nearby_pets', rpcParams);
 
             if (rpcError) {
                 console.error("Error calling nearby_pets RPC:", rpcError);
                 setError("Could not fetch nearby pets. Please try again later.");
                 setListings([]);
             } else {
-                // Apply client-side filters for species, age, and size
                 const filtered = (data || []).filter((p: AdoptablePet) => {
                     const speciesMatch = species === 'All' || p.species === species;
                     const ageMatch = age === 'All' || p.age === age;
@@ -141,10 +530,7 @@ const AdoptionScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             setLoading(false);
         };
         
-        // Only fetch if we have a user location
-        if (userLocation) {
-            fetchListings();
-        }
+        fetchListings();
     }, [userLocation, species, age, size, distance]);
 
     return (
@@ -158,11 +544,9 @@ const AdoptionScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     <button onClick={() => setShowFilters(!showFilters)} className={`p-2 rounded-full transition-colors ${showFilters ? 'bg-teal-100 text-teal-600' : 'bg-gray-100 text-gray-600'}`}>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 12.414V17a1 1 0 01-1.447.894l-2-1A1 1 0 018 16v-3.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" /></svg>
                     </button>
-                    {/* View Toggle */}
                 </div>
             </header>
 
-            {/* Filter Panel */}
             {showFilters && (
                 <div className="p-4 bg-white border-b sticky top-[65px] z-10">
                     <div className="grid grid-cols-2 gap-4">
@@ -205,9 +589,308 @@ const AdoptionScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 
                 {!loading && listings.length > 0 && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {listings.map(pet => <PetAdoptionCard key={pet.id} pet={pet} />)}
+                        {listings.map(pet => (
+                           <div key={pet.id} onClick={() => onSelectPet(pet.id)} className="cursor-pointer">
+                                <PetAdoptionCard pet={pet} />
+                           </div>
+                        ))}
                     </div>
                 )}
+            </main>
+        </div>
+    );
+};
+
+
+// --- ADOPTION APPLICATION FLOW COMPONENTS ---
+
+const PetDetailScreen: React.FC<{ petId: string; onBack: () => void; onApply: (listing: AdoptionListing) => void; }> = ({ petId, onBack, onApply }) => {
+    const [listing, setListing] = useState<AdoptionListing | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchListing = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const { data, error } = await supabase
+                    .from('adoption_listings')
+                    .select('*, shelter:shelters(name, city)')
+                    .eq('id', petId)
+                    .single();
+                if (error) throw error;
+                setListing(data as AdoptionListing);
+            } catch (err: any) {
+                setError('Failed to load pet details.');
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchListing();
+    }, [petId]);
+
+    const InfoTag: React.FC<{ label: string }> = ({ label }) => (
+        <span className="bg-teal-100 text-teal-800 text-xs font-medium px-2.5 py-1 rounded-full">{label}</span>
+    );
+    
+    if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-teal-500"></div></div>;
+    if (error || !listing) return <div className="min-h-screen flex items-center justify-center text-center p-4"><p className="text-red-600">{error || "Pet not found."}</p><button onClick={onBack} className="mt-4 text-teal-600 font-semibold">Go Back</button></div>;
+
+    return (
+        <div className="min-h-screen bg-gray-50">
+             <header className="p-4 flex items-center bg-white/80 backdrop-blur-sm sticky top-0 z-20">
+                <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900 bg-white rounded-full p-2 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                </button>
+            </header>
+            
+            <main className="pb-24">
+                <div className="w-full aspect-square bg-gray-200">
+                    <img src={listing.photos[0]} alt={listing.name} className="w-full h-full object-cover" />
+                </div>
+                
+                <div className="p-4 space-y-4 bg-white -mt-12 rounded-t-2xl relative z-10">
+                    <h1 className="text-3xl font-bold text-gray-800">{listing.name}</h1>
+                    <div className="flex flex-wrap gap-2">
+                        <InfoTag label={listing.breed} />
+                        <InfoTag label={listing.age} />
+                        <InfoTag label={listing.gender} />
+                        <InfoTag label={listing.size} />
+                    </div>
+
+                    <div className="flex items-center space-x-3 text-sm text-gray-600 pt-2">
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>
+                         <span>{(listing.shelter as any)?.name}, {(listing.shelter as any)?.city}</span>
+                    </div>
+
+                    <div className="pt-4">
+                        <h2 className="text-xl font-bold text-gray-800 mb-2">About {listing.name}</h2>
+                        <p className="text-gray-600 whitespace-pre-wrap">{listing.description}</p>
+                    </div>
+
+                    {listing.story && (
+                         <div className="pt-2">
+                            <h2 className="text-xl font-bold text-gray-800 mb-2">My Story</h2>
+                            <p className="text-gray-600 whitespace-pre-wrap">{listing.story}</p>
+                        </div>
+                    )}
+                </div>
+            </main>
+            
+            <footer className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-sm border-t z-20">
+                <button onClick={() => onApply(listing)} className="w-full bg-teal-500 text-white font-bold py-4 rounded-xl hover:bg-teal-600 transition-colors text-lg">
+                    Apply to Adopt
+                </button>
+            </footer>
+        </div>
+    );
+};
+
+
+const AdoptionApplicationScreen: React.FC<{ listing: AdoptionListing; userProfile: UserProfile | null; onBack: () => void; onSubmitted: () => void; }> = ({ listing, userProfile, onBack, onSubmitted }) => {
+    const [formData, setFormData] = useState({
+        residenceType: 'Own', homeType: 'Apartment', hasYard: false,
+        timeAlone: '0-4 hours', experience: 'First-time', motivation: ''
+    });
+    const [documentFile, setDocumentFile] = useState<File | null>(null);
+    const [agreed, setAgreed] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState('');
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        if (!agreed) { setError("You must agree to the terms before submitting."); return; }
+        if (!userProfile) { setError("User profile not found."); return; }
+        
+        setIsSubmitting(true);
+        try {
+            let document_url: string | undefined = undefined;
+            if (documentFile) {
+                const filePath = `adoption_docs/${userProfile.auth_user_id}/${Date.now()}_${documentFile.name}`;
+                const { error: uploadError } = await supabase.storage.from('pet_images').upload(filePath, documentFile);
+                if (uploadError) throw uploadError;
+                document_url = supabase.storage.from('pet_images').getPublicUrl(filePath).data.publicUrl;
+            }
+
+            const applicationData = {
+                auth_user_id: userProfile.auth_user_id,
+                listing_id: listing.id,
+                shelter_id: listing.shelter_id,
+                status: 'Submitted' as const,
+                application_data: formData,
+                document_url,
+            };
+
+            const { error: insertError } = await supabase.from('adoption_applications').insert(applicationData);
+            if (insertError) throw insertError;
+            
+            onSubmitted();
+        } catch (err: any) {
+            setError(`Submission failed: ${err.message}`);
+            console.error(err);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    return (
+        <div className="min-h-screen flex flex-col bg-gray-100">
+            <header className="p-4 flex items-center border-b bg-white sticky top-0 z-20">
+                <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
+                <h1 className="text-xl font-bold">Adopt {listing.name}</h1>
+            </header>
+
+            <main className="flex-grow p-4 space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Your Information */}
+                    <div className="bg-white p-4 rounded-lg shadow-sm">
+                        <h2 className="font-bold text-lg mb-2">Your Information</h2>
+                        <div className="space-y-2 text-sm text-gray-600">
+                            <p><strong>Name:</strong> {userProfile?.name}</p>
+                            <p><strong>Email:</strong> {userProfile?.email}</p>
+                            <p><strong>City:</strong> {userProfile?.city}</p>
+                        </div>
+                    </div>
+                    {/* Home & Lifestyle */}
+                    <div className="bg-white p-4 rounded-lg shadow-sm">
+                        <h2 className="font-bold text-lg mb-4">Home & Lifestyle</h2>
+                        <div className="space-y-4">
+                             <div>
+                                <label className="text-sm font-medium text-gray-700">Do you own or rent your home?</label>
+                                <select value={formData.residenceType} onChange={e => setFormData(f => ({...f, residenceType: e.target.value as any}))} className="w-full mt-1 p-2 border rounded-md bg-white focus:ring-teal-500 focus:border-teal-500"><option>Own</option><option>Rent</option></select>
+                            </div>
+                             <div>
+                                <label className="text-sm font-medium text-gray-700">How long will the pet be alone on an average day?</label>
+                                <select value={formData.timeAlone} onChange={e => setFormData(f => ({...f, timeAlone: e.target.value as any}))} className="w-full mt-1 p-2 border rounded-md bg-white focus:ring-teal-500 focus:border-teal-500"><option>0-4 hours</option><option>4-8 hours</option><option>8+ hours</option></select>
+                            </div>
+                             <div>
+                                <label className="text-sm font-medium text-gray-700">Why do you want to adopt {listing.name}?</label>
+                                <textarea value={formData.motivation} onChange={e => setFormData(f => ({...f, motivation: e.target.value}))} rows={3} className="w-full mt-1 p-2 border rounded-md focus:ring-teal-500 focus:border-teal-500" placeholder="Tell us a little bit about your decision."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                     {/* Final Steps */}
+                     <div className="bg-white p-4 rounded-lg shadow-sm">
+                        <h2 className="font-bold text-lg mb-4">Final Steps</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-sm font-medium text-gray-700">Upload ID & Address Proof</label>
+                                <p className="text-xs text-gray-500 mb-2">A single PDF or image file is preferred.</p>
+                                <input ref={fileInputRef} type="file" onChange={e => setDocumentFile(e.target.files?.[0] || null)} className="hidden" />
+                                <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full p-3 border-2 border-dashed rounded-lg text-center text-gray-500 hover:border-teal-500 hover:text-teal-600">
+                                    {documentFile ? `Selected: ${documentFile.name}` : "Click to select a file"}
+                                </button>
+                            </div>
+                             <div className="flex items-start space-x-3">
+                                <input type="checkbox" id="agree" checked={agreed} onChange={e => setAgreed(e.target.checked)} className="mt-1 h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"/>
+                                <label htmlFor="agree" className="text-sm text-gray-700">I certify that the information provided is true and I agree to a potential home check and follow-up communication from the shelter.</label>
+                            </div>
+                        </div>
+                    </div>
+                    {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+                     <button type="submit" disabled={isSubmitting || !agreed} className="w-full bg-teal-500 text-white font-bold py-3 rounded-lg hover:bg-teal-600 disabled:opacity-50">
+                        {isSubmitting ? 'Submitting...' : 'Submit Application'}
+                    </button>
+                </form>
+            </main>
+        </div>
+    );
+};
+
+const MyApplicationsScreen: React.FC<{ onBack: () => void; }> = ({ onBack }) => {
+    const [applications, setApplications] = useState<AdoptionApplication[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchApplications = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) throw new Error("User not found");
+                
+                const { data, error: fetchError } = await supabase
+                    .from('adoption_applications')
+                    .select('*, listing:adoption_listings(name, photos, breed)')
+                    .eq('auth_user_id', user.id)
+                    .order('submitted_at', { ascending: false });
+
+                if (fetchError) throw fetchError;
+                setApplications(data as any[] || []);
+            } catch (err: any) {
+                setError("Failed to load your applications.");
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchApplications();
+    }, []);
+
+    const StatusTracker: React.FC<{ status: AdoptionApplication['status'] }> = ({ status }) => {
+        const steps = ['Submitted', 'In Review', 'Interview Scheduled', 'Approved'];
+        const currentIndex = steps.indexOf(status);
+        const isRejected = status === 'Rejected';
+
+        return (
+            <div className="mt-2">
+                 <div className="flex justify-between items-center">
+                    {steps.map((step, index) => (
+                        <div key={step} className={`flex-1 h-1 ${index <= currentIndex ? (isRejected ? 'bg-red-400' : 'bg-teal-500') : 'bg-gray-200'} ${index === 0 ? 'rounded-l-full' : ''} ${index === steps.length - 1 ? 'rounded-r-full' : ''}`}></div>
+                    ))}
+                </div>
+                 <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    {steps.map((step, index) => (
+                        <span key={step} className={`${index <= currentIndex ? (isRejected ? 'text-red-600 font-bold' : 'text-teal-600 font-bold') : ''}`}>{step}</span>
+                    ))}
+                </div>
+                {isRejected && <p className="text-center text-red-600 font-bold text-sm mt-2">Application Rejected</p>}
+            </div>
+        );
+    };
+
+    const ApplicationCard: React.FC<{ app: AdoptionApplication }> = ({ app }) => (
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+            <div className="flex items-start space-x-4">
+                <img src={app.listing?.photos[0]} alt={app.listing?.name} className="w-20 h-20 rounded-lg object-cover" />
+                <div>
+                    <h3 className="font-bold text-lg">{app.listing?.name}</h3>
+                    <p className="text-sm text-gray-500">{app.listing?.breed}</p>
+                    <p className="text-xs text-gray-400 mt-1">Submitted: {new Date(app.submitted_at).toLocaleDateString()}</p>
+                </div>
+            </div>
+            <StatusTracker status={app.status} />
+            <div className="mt-4 pt-3 border-t flex gap-2">
+                 <button className="w-full text-sm bg-gray-100 text-gray-700 font-semibold py-2 rounded-md hover:bg-gray-200">Message Shelter</button>
+                 <button className="w-full text-sm bg-gray-100 text-gray-700 font-semibold py-2 rounded-md hover:bg-gray-200 disabled:opacity-50" disabled={app.status !== 'Interview Scheduled' && app.status !== 'Approved'}>Schedule Call</button>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="min-h-screen flex flex-col bg-gray-100">
+            <header className="p-4 flex items-center border-b bg-white sticky top-0 z-20">
+                <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
+                <h1 className="text-xl font-bold">My Applications</h1>
+            </header>
+            <main className="flex-grow p-4">
+                {loading && <div className="text-center p-8"><div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div><p className="mt-2 text-gray-600">Loading applications...</p></div>}
+                {error && <div className="bg-red-50 text-red-700 p-4 rounded-lg text-center">{error}</div>}
+                {!loading && !error && applications.length === 0 && (
+                    <div className="text-center text-gray-500 pt-16">
+                        <p className="font-semibold">No applications yet!</p>
+                        <p>When you apply to adopt a pet, you'll see your status here.</p>
+                    </div>
+                )}
+                 {!loading && applications.length > 0 && (
+                    <div className="space-y-4">
+                        {applications.map(app => <ApplicationCard key={app.id} app={app} />)}
+                    </div>
+                 )}
             </main>
         </div>
     );
@@ -220,7 +903,7 @@ const PlaceholderScreen: React.FC<{ title: string; icon: React.ReactNode; messag
     <div className="h-screen flex flex-col">
         <header className="p-4 flex items-center border-b">
             <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0- 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             </button>
             <h1 className="text-xl font-bold">{title}</h1>
         </header>
@@ -664,51 +1347,53 @@ const App: React.FC = () => {
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<UserProfile | null>(null);
-    const [pet, setPet] = useState<Pet | null>(null);
+    const [pets, setPets] = useState<Pet[]>([]);
+    const [activePet, setActivePet] = useState<Pet | null>(null); // For single-pet screens
     const [onboardingStage, setOnboardingStage] = useState<OnboardingStage>('done');
     const [activeScreen, setActiveScreen] = useState<ActiveScreen>('home');
     const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
     const [verificationEmail, setVerificationEmail] = useState('');
     const [appError, setAppError] = useState<string>('');
+    const [showPetSelector, setShowPetSelector] = useState<ActiveScreen | null>(null);
+
+    // Adoption flow state
+    const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
+    const [selectedListingForApplication, setSelectedListingForApplication] = useState<AdoptionListing | null>(null);
+
 
     // --- DATA FETCHING & AUTH EFFECT ---
     const checkAndSetOnboardingStage = async (currentUser: User) => {
         if (!currentUser || !supabase) return;
         setLoading(true);
-        setAppError(''); // Clear previous errors
+        setAppError('');
 
         try {
             // 1. Check for profile
             const { data: profileData, error: profileError } = await supabase
                 .from('user_profiles').select('*').eq('auth_user_id', currentUser.id).single();
 
-            // A real error occurred (not just "profile not found")
-            if (profileError && profileError.code !== 'PGRST116') {
-                throw new Error("Could not load your profile. Please check your connection and try again later.");
-            }
-
-            if (!profileData) { // This is a new user
+            if (profileError && profileError.code !== 'PGRST116') throw new Error("Could not load your profile.");
+            if (!profileData) {
                 setOnboardingStage('welcome');
                 setProfile(null);
-                setPet(null);
+                setPets([]);
                 return;
             }
-
             setProfile(profileData);
-            // 2. Check for pet
-            const { data: petData, error: petError } = await supabase
-                .from('pets').select('*').eq('auth_user_id', currentUser.id).limit(1).single();
-            
-            // A real error occurred (not just "pet not found")
-            if (petError && petError.code !== 'PGRST116') {
-                throw new Error("Could not load your pet's details. Please try again later.");
-            }
 
-            if (!petData) {
+            // 2. Check for pets
+            const { data: petsData, error: petsError } = await supabase
+                .from('pets').select('*').eq('auth_user_id', currentUser.id);
+            
+            if (petsError) throw new Error("Could not load your pet's details.");
+
+            if (!petsData || petsData.length === 0) {
                 setOnboardingStage('pet');
-                setPet(null);
+                setPets([]);
+                setActivePet(null);
             } else {
-                setPet(petData);
+                setPets(petsData);
+                setActivePet(petsData[0] || null); // Set the first pet as active by default
                 setOnboardingStage('done');
             }
         } catch (err: any) {
@@ -747,186 +1432,191 @@ const App: React.FC = () => {
                 }
             } else if (_event === 'SIGNED_OUT') {
                 setProfile(null);
-                setPet(null);
+                setPets([]);
+                setActivePet(null);
                 setOnboardingStage('done');
                 setNeedsEmailVerification(false);
-            } else if (_event === 'USER_UPDATED' && currentUser?.email_confirmed_at) {
-                setNeedsEmailVerification(false);
-                await checkAndSetOnboardingStage(currentUser);
+            } else if (_event === 'USER_UPDATED' || _event === 'TOKEN_REFRESHED') {
+                if (currentUser && currentUser.email_confirmed_at && needsEmailVerification) {
+                    setNeedsEmailVerification(false);
+                    await checkAndSetOnboardingStage(currentUser);
+                }
             }
         });
 
         return () => subscription.unsubscribe();
-    }, []);
+    }, [needsEmailVerification]);
 
-    // --- HEALTH CHECK LOGIC ---
-    const [isCheckingHealth, setIsCheckingHealth] = useState(false);
-    const [healthResult, setHealthResult] = useState<HealthCheckResult | null>(null);
-    const [healthError, setHealthError] = useState<string | null>(null);
+    // --- NAVIGATION & MODAL LOGIC ---
+    const handleNavigation = (screen: ActiveScreen) => {
+        // For screens that need a specific pet context
+        if ((screen === 'health' || screen === 'book') && pets.length > 1) {
+            setShowPetSelector(screen);
+        } else {
+            setActiveScreen(screen);
+        }
+    };
     
-    const base64FromFile = (file: File): Promise<string> => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => {
-            const result = (reader.result as string).split(',')[1];
-            resolve(result);
-        };
-        reader.onerror = error => reject(error);
-    });
+    const handlePetSelect = (pet: Pet) => {
+        if (showPetSelector) {
+            setActivePet(pet);
+            setActiveScreen(showPetSelector);
+            setShowPetSelector(null);
+        }
+    };
+
+    // --- AI HEALTH CHECK LOGIC ---
+    const [healthCheckResult, setHealthCheckResult] = useState<HealthCheckResult | null>(null);
+    const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+    const [healthCheckError, setHealthCheckError] = useState<string | null>(null);
 
     const handleAnalyzePet = async (imageFile: File, notes: string) => {
-        if (!pet) {
-            setHealthError("No active pet profile to analyze.");
-            return;
+        if (!activePet) {
+          setHealthCheckError("No pet selected for analysis.");
+          return;
         }
+
         setIsCheckingHealth(true);
-        setHealthResult(null);
-        setHealthError(null);
+        setHealthCheckResult(null);
+        setHealthCheckError(null);
 
         try {
-            const imageBase64 = await base64FromFile(imageFile);
-            
-            const petAge = new Date().getFullYear() - new Date(pet.birth_date).getFullYear();
-            
-            const result = await geminiService.analyzePetHealth(
-                imageBase64,
-                imageFile.type,
-                notes,
-                { name: pet.name, breed: pet.breed, age: `${petAge} years` }
-            );
-
-            setHealthResult(result);
-            // Save to DB
-            if (supabase && user) {
-                 await supabase.from('ai_feedback').insert({
-                    pet_id: pet.id,
-                    auth_user_id: user.id,
-                    input_data: { notes },
-                    ai_response: JSON.stringify(result),
-                    status: 'completed',
-                });
-            }
-
+            const reader = new FileReader();
+            reader.readAsDataURL(imageFile);
+            reader.onloadend = async () => {
+                const base64String = (reader.result as string).split(',')[1];
+                const petContext = {
+                    name: activePet.name,
+                    breed: activePet.breed,
+                    age: new Date(activePet.birth_date).toLocaleDateString()
+                };
+                const result = await geminiService.analyzePetHealth(base64String, imageFile.type, notes, petContext);
+                setHealthCheckResult(result);
+            };
         } catch (error: any) {
             console.error(error);
-            setHealthError(error.message || "An unknown error occurred during analysis.");
+            setHealthCheckError(error.message || "An unknown error occurred during analysis.");
         } finally {
             setIsCheckingHealth(false);
         }
     };
     
-    const handleLogout = async () => {
-        if (supabase) {
-            setLoading(true);
-            await supabase.auth.signOut();
-            setLoading(false);
-        }
-    };
-    
     const resetHealthCheck = () => {
-        setHealthResult(null);
-        setHealthError(null);
+        setHealthCheckResult(null);
+        setHealthCheckError(null);
+        setIsCheckingHealth(false);
         setActiveScreen('home');
-    }
-    
+    };
+
+    // --- PET SELECTOR MODAL ---
+    const PetSelectorModal: React.FC<{
+        pets: Pet[];
+        onSelect: (pet: Pet) => void;
+        onCancel: () => void;
+    }> = ({ pets, onSelect, onCancel }) => (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onCancel}>
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+                <h2 className="text-xl font-bold text-center text-gray-800 mb-4">Choose a Pet</h2>
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+                    {pets.map(p => (
+                        <button
+                            key={p.id}
+                            onClick={() => onSelect(p)}
+                            className="w-full flex items-center p-3 bg-gray-50 rounded-lg hover:bg-teal-100 transition-colors"
+                        >
+                            <img src={p.photo_url} alt={p.name} className="w-12 h-12 rounded-full object-cover mr-4" />
+                            <div>
+                                <p className="font-semibold text-left text-gray-900">{p.name}</p>
+                                <p className="text-sm text-left text-gray-500">{p.breed}</p>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+                 <button onClick={onCancel} className="w-full mt-4 bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    );
+
     // --- RENDER LOGIC ---
     if (missingKeys.length > 0) {
         return <EnvironmentVariablePrompt missingKeys={missingKeys} />;
     }
-
+    
     if (appError) {
-        return <AppErrorScreen message={appError} onRetry={() => {
-            if (user) {
-                checkAndSetOnboardingStage(user);
-            } else {
-                setAppError(''); // If no user, just dismiss and go back to auth
-            }
-        }} />;
+        return <AppErrorScreen message={appError} onRetry={() => { setAppError(''); if (user) checkAndSetOnboardingStage(user); }} />;
     }
-
+    
     if (loading) {
         return <LoadingScreen />;
     }
-    
+
     if (!session || !user) {
         return <AuthScreen />;
     }
-    
+
     if (needsEmailVerification) {
         return <EmailVerificationScreen email={verificationEmail} />;
     }
     
-    // --- ONBOARDING FLOW ---
     if (onboardingStage !== 'done') {
         switch (onboardingStage) {
             case 'welcome':
                 return <WelcomeScreen onGetStarted={() => setOnboardingStage('profile')} />;
             case 'profile':
-                return <OnboardingProfileScreen 
-                            user={user} 
-                            profile={profile}
-                            onProfileCreated={async () => {
-                                // Re-check status which will fetch profile and move to pet stage
-                                if(user) await checkAndSetOnboardingStage(user);
-                            }} 
-                        />;
+                return <OnboardingProfileScreen user={user} profile={profile} onProfileCreated={() => { checkAndSetOnboardingStage(user); setOnboardingStage('pet'); }} />;
             case 'pet':
-                return <OnboardingPetScreen 
-                            user={user} 
-                            onPetAdded={() => setOnboardingStage('complete')}
-                            onBack={() => setOnboardingStage('profile')}
-                            onSkip={() => {
-                                setPet(null); // No pet is set, so we can skip creating one
-                                setOnboardingStage('complete');
-                            }}
-                         />;
+                 return <OnboardingPetScreen user={user} onPetAdded={() => setOnboardingStage('complete')} onSkip={() => setOnboardingStage('done')} onBack={() => setOnboardingStage('profile')} />;
             case 'complete':
-                return <OnboardingCompletionScreen pet={pet} onComplete={async () => {
-                     if(user) await checkAndSetOnboardingStage(user);
-                }} />;
+                return <OnboardingCompletionScreen pet={activePet} onComplete={() => checkAndSetOnboardingStage(user)} />;
             default:
-                // Fallback to done if stage is invalid
-                setOnboardingStage('done');
                 return <LoadingScreen />;
         }
     }
     
-
-    const renderActiveScreen = () => {
+    const renderScreen = () => {
         switch(activeScreen) {
             case 'home':
-                return <HomeScreen onNavigate={setActiveScreen} pet={pet} profile={profile} />;
-            case 'health':
-                return <HealthCheckScreen pet={pet} onBack={resetHealthCheck} onAnalyze={handleAnalyzePet} isChecking={isCheckingHealth} result={healthResult} error={healthError} />;
+                return <HomeScreen onNavigate={handleNavigation} pet={activePet} profile={profile} />;
             case 'book':
-                return <PetBookScreen onBack={() => setActiveScreen('home')} pet={pet} />;
+                return <PetBookScreen onBack={() => setActiveScreen('home')} pet={activePet} />;
+            case 'connect':
+                 return <ConnectScreen currentUserProfile={profile} currentUser={user} />;
+            case 'profile':
+                return <ProfileScreen user={user} profile={profile} pets={pets} onBack={() => setActiveScreen('home')} onLogout={() => supabase.auth.signOut()} onDataUpdate={() => checkAndSetOnboardingStage(user)} onNavigate={setActiveScreen} />;
+            case 'health':
+                return <HealthCheckScreen pet={activePet} onBack={resetHealthCheck} onAnalyze={handleAnalyzePet} isChecking={isCheckingHealth} result={healthCheckResult} error={healthCheckError} />;
+            case 'adoption':
+                 return <AdoptionScreen onBack={() => setActiveScreen('home')} onSelectPet={(petId) => { setSelectedPetId(petId); setActiveScreen('petDetail'); }} />;
+            case 'admin':
+                return <AdminDashboardScreen onBack={() => setActiveScreen('profile')} />;
+            case 'vet':
+                return <PlaceholderScreen title="Vet Booking" icon={ICONS.VET_BOOKING} message="Coming soon! Find and book appointments with trusted veterinarians in your city." onBack={() => setActiveScreen('home')} />;
             case 'essentials':
                 return <ShopScreen onBack={() => setActiveScreen('home')} />;
-            case 'adoption':
-                return <AdoptionScreen onBack={() => setActiveScreen('home')} />;
-            case 'vet':
-                 return <PlaceholderScreen title="Vet Booking" icon={ICONS.VET_BOOKING} message="Find and book appointments with trusted veterinarians in your city. This feature is coming soon!" onBack={() => setActiveScreen('home')} />;
-            case 'profile':
-                return <ProfileScreen user={user} profile={profile} pet={pet} onBack={() => setActiveScreen('home')} onLogout={handleLogout} onDataUpdate={() => user && checkAndSetOnboardingStage(user)} />;
+            case 'petDetail':
+                 if (!selectedPetId) return <AdoptionScreen onBack={() => setActiveScreen('home')} onSelectPet={(petId) => { setSelectedPetId(petId); setActiveScreen('petDetail'); }} />;
+                 return <PetDetailScreen petId={selectedPetId} onBack={() => { setSelectedPetId(null); setActiveScreen('adoption'); }} onApply={(listing) => { setSelectedListingForApplication(listing); setActiveScreen('adoptionApplication'); }} />;
+            case 'adoptionApplication':
+                 if (!selectedListingForApplication) return <AdoptionScreen onBack={() => setActiveScreen('home')} onSelectPet={(petId) => { setSelectedPetId(petId); setActiveScreen('petDetail'); }} />; // fallback
+                 return <AdoptionApplicationScreen listing={selectedListingForApplication} userProfile={profile} onBack={() => setActiveScreen('petDetail')} onSubmitted={() => { setSelectedListingForApplication(null); setActiveScreen('myApplications'); }} />;
+            case 'myApplications':
+                 return <MyApplicationsScreen onBack={() => setActiveScreen('profile')} />;
+            case 'safetyCenter':
+                return <SafetyCenterScreen onBack={() => setActiveScreen('profile')} />;
             default:
-                return <HomeScreen onNavigate={setActiveScreen} pet={pet} profile={profile} />;
+                return <HomeScreen onNavigate={handleNavigation} pet={activePet} profile={profile} />;
         }
     };
 
     return (
-        <div className="max-w-lg mx-auto bg-white min-h-screen relative pb-16">
-           {activeScreen !== 'health' && (
-             <main>
-               {renderActiveScreen()}
-             </main>
-            )}
-            
-            {/* Health check screen is a full-screen modal so it's rendered outside the main flow */}
-            {activeScreen === 'health' && renderActiveScreen()}
-            
-            {activeScreen !== 'health' && <BottomNav activeScreen={activeScreen} onNavigate={setActiveScreen} />}
+        <div className="pb-16">
+            {renderScreen()}
+            {showPetSelector && <PetSelectorModal pets={pets} onSelect={handlePetSelect} onCancel={() => setShowPetSelector(null)} />}
+            {['home', 'book', 'connect', 'adoption', 'profile'].includes(activeScreen) && <BottomNav activeScreen={activeScreen} onNavigate={handleNavigation} />}
         </div>
     );
-};
+}
 
 export default App;

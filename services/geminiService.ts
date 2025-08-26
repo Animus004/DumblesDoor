@@ -78,6 +78,46 @@ User's notes: "${notes}"`,
   }
 };
 
+export const suggestPostHashtags = async (postContent: string): Promise<string[]> => {
+    if (!ai) {
+        throw new Error("Gemini AI client is not initialized.");
+    }
+    if (!postContent.trim()) {
+        return [];
+    }
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `Analyze this social media post from a pet owner in India and suggest 3-5 relevant hashtags. Post Content: "${postContent}"`,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        hashtags: {
+                            type: Type.ARRAY,
+                            items: { type: Type.STRING, description: "A hashtag starting with #" },
+                            description: "An array of 3-5 suggested hashtags, like '#DogsofIndia'."
+                        }
+                    },
+                    required: ["hashtags"]
+                }
+            }
+        });
+        
+        const jsonText = response.text.trim();
+        const parsed = JSON.parse(jsonText);
+        return parsed.hashtags || [];
+
+    } catch (error) {
+        console.error("Error suggesting hashtags:", error);
+        // Return some generic hashtags on failure
+        return ["#PetLove", "#HappyPet", "#CutePet"];
+    }
+};
+
+
 export const getChatStream = async function* (history: GeminiChatMessage[], newMessage: string) {
     if (!ai) {
       throw new Error("Gemini AI client is not initialized. Check VITE_API_KEY.");

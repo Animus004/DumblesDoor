@@ -1,9 +1,4 @@
-
-
-
-
-
-
+// Trigger Vercel deployment
 import React, { useState, useEffect, useRef } from 'react';
 import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Vet, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile } from './types';
 import { ICONS } from './constants';
@@ -15,7 +10,7 @@ import FeatureCard from './components/FeatureCard';
 import ApiKeyPrompt from './components/ApiKeyPrompt';
 import { marked } from 'marked';
 
-type ActiveScreen = 'home' | 'book' | 'essentials' | 'vet' | 'profile' | 'petDataAI';
+type ActiveScreen = 'home' | 'book' | 'essentials' | 'vet' | 'profile' | 'petDataAI' | 'environmentVariables';
 
 // --- AUTH & ONBOARDING COMPONENTS ---
 
@@ -355,1031 +350,509 @@ const App: React.FC = () => {
   
   const [activeScreen, setActiveScreen] = useState<ActiveScreen>('home');
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
-  const [chatContext, setChatContext] = useState<string | undefined>(undefined);
-  const [productContext, setProductContext] = useState<string | null>(null);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [healthCheckResult, setHealthCheckResult] = useState<HealthCheckResult | null>(null);
+  const [healthCheckError, setHealthCheckError] = useState<string | null>(null);
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+  
+  const [chatMessages, setChatMessages] = useState<DBChatMessage[]>([]);
+  const [isAiTyping, setIsAiTyping] = useState(false);
+  
+  const imageCaptureRef = useRef<HTMLInputElement>(null);
 
-    // Effect for checking API Key and handling auth state changes
-    useEffect(() => {
-        if (process.env.API_KEY) setApiKeyExists(true);
+  useEffect(() => {
+    // Check for API key on initial load
+    setApiKeyExists(!!process.env.API_KEY);
 
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            // Initial load can be slow, so let's set loading to false after the first check
-            // The next useEffect will handle loading for actual app data
+    // Set up auth state listener
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+        setSession(session);
+        if (!session) {
+            // User logged out
+            setUserProfile(null);
+            setPets([]);
+            setTimeline([]);
             setIsLoading(false);
-        });
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setSession(session);
-        });
-
-        return () => subscription.unsubscribe();
-    }, []);
-
-    // Effect for loading all app data when a session is active
-    useEffect(() => {
-        const loadAppData = async () => {
-            if (!session) {
-                setUserProfile(null);
-                setPets([]);
-                setTimeline([]);
-                // No need to set loading, handled by the session check
-                return;
-            }
-
-            setIsLoading(true);
-            try {
-                // Fetch user-specific profile first
-                const { data: profileData, error: profileError } = await supabase.from('Dumblesdoor_User').select('*').eq('auth_user_id', session.user.id).single();
-
-                if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means no rows found, which is fine
-                    throw profileError;
-                }
-
-                // If profile exists, load everything else
-                if (profileData) {
-                    setUserProfile(profileData);
-                    const [vetsRes, productsRes, encyclopediaRes, petsRes, postsRes, appointmentsRes, healthChecksRes] = await Promise.all([
-                        supabase.from('vet').select('*'),
-                        supabase.from('product').select('*'),
-                        supabase.from('encyclopedia').select('*'),
-                        supabase.from('pet').select('*').eq('auth_user_id', session.user.id),
-                        supabase.from('petbook_post').select('*').eq('auth_user_id', session.user.id),
-                        supabase.from('appointment').select('*, vet:vet_id(*)').eq('auth_user_id', session.user.id),
-                        supabase.from('ai_feedback').select('*').eq('auth_user_id', session.user.id)
-                    ]);
-
-                    if (vetsRes.data) setVets(vetsRes.data as any);
-                    if (productsRes.data) setProducts(productsRes.data as any);
-                    if (encyclopediaRes.data) setEncyclopedia(encyclopediaRes.data as any);
-                    if (petsRes.data) setPets(petsRes.data as any);
-                    
-                    const timelineData: TimelineEntry[] = [];
-                    postsRes.data?.forEach(p => timelineData.push({ id: p.id, timestamp: p.created_at, type: 'post', pet_id: p.pet_id, data: p as PetbookPost }));
-                    appointmentsRes.data?.forEach(a => timelineData.push({ id: a.id, timestamp: a.created_at, type: 'appointment', pet_id: a.pet_id, data: a as Appointment }));
-                    healthChecksRes.data?.forEach(h => timelineData.push({ id: h.id, timestamp: h.submitted_at, type: 'health_check', pet_id: h.pet_id, data: h as AIFeedback }));
-
-                    setTimeline(timelineData.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-                } else {
-                    // User is authenticated but has no profile, so we don't need to load user data
-                    setUserProfile(null);
-                }
-            } catch (error) {
-                console.error("Error loading app data:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        
-        loadAppData();
-    }, [session]);
-
-    const handleProfileAndPetSetup = async (
-        profileData: Omit<UserProfile, 'auth_user_id' | 'email'>,
-        petData: Omit<Pet, 'id' | 'auth_user_id' | 'notes'>
-    ) => {
-        setIsLoading(true);
-        const MAX_RETRIES = 3;
-        const RETRY_DELAY = 1000; // 1 second
-
-        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-            try {
-                // Get the MOST current session right before the attempt
-                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-                if (sessionError || !session) {
-                    throw new Error("Authentication session not found. Please log in again.");
-                }
-
-                const user = session.user;
-                const fullProfileData = {
-                    ...profileData,
-                    email: user.email!,
-                    auth_user_id: user.id
-                };
-
-                const { data: newProfileData, error: profileError } = await supabase
-                    .from('Dumblesdoor_User')
-                    .insert(fullProfileData)
-                    .select()
-                    .single();
-
-                if (profileError) {
-                    // Re-throw to be caught by the outer catch block of this attempt
-                    throw profileError;
-                }
-
-                // --- SUCCESS ---
-                if (!newProfileData) {
-                    throw new Error("An unknown error occurred while creating your profile.");
-                }
-                setUserProfile(newProfileData as UserProfile);
-
-                const petPayload = { ...petData, auth_user_id: user.id };
-                const { data: newPetData, error: petError } = await supabase
-                    .from('pet')
-                    .insert(petPayload)
-                    .select()
-                    .single();
-
-                if (petError) {
-                    console.error("Failed to create pet during setup:", petError);
-                    alert("Your profile was created, but we couldn't add your pet. You can add it from your profile page.");
-                }
-                if (newPetData) setPets([newPetData as Pet]);
-                
-                setTimeline([]);
-                setIsLoading(false);
-                return; // Exit the function successfully
-
-            } catch (error: any) {
-                // Check if it's the specific RLS error (code for postgres RLS violation)
-                if (error.code === '42501' && attempt < MAX_RETRIES) {
-                    console.warn(`Attempt ${attempt} failed with RLS error. Retrying in ${RETRY_DELAY}ms...`);
-                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-                    // Also force a session refresh before the next attempt, just in case
-                    await supabase.auth.refreshSession(); 
-                } else {
-                    // This is a different error, or the last attempt failed.
-                    console.error("Error during setup process:", error);
-                    const errorMessage = error.message || "An unknown error occurred.";
-                    alert(`There was an error setting up your profile: ${errorMessage}\nPlease try again.`);
-                    setIsLoading(false);
-                    return; // Exit function on failure
-                }
-            }
+        } else {
+            // User logged in, fetch their data
+            fetchInitialData(session.user.id);
         }
+    });
+
+    return () => {
+        authListener.subscription.unsubscribe();
     };
+  }, []);
 
+  const fetchInitialData = async (userId: string) => {
+    setIsLoading(true);
+    try {
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('auth_user_id', userId)
+            .single();
 
-  const addTimelineEntry = (entry: TimelineEntry) => {
-    setTimeline(prev => [entry, ...prev].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-  };
+        if (profileError && profileError.code !== 'PGRST116') { // Ignore 'exact one row' error if profile doesn't exist
+            throw profileError;
+        }
 
-  const handleAddPost = async (post: Omit<PetbookPost, 'id' | 'auth_user_id' | 'created_at'>) => {
-    if (!session) return;
-    const payload = { ...post, auth_user_id: session.user.id };
-    const { data: newPost, error } = await supabase.from('petbook_post').insert(payload).select().single();
-    if (!error && newPost) {
-      addTimelineEntry({ id: newPost.id, timestamp: newPost.created_at, type: 'post', pet_id: newPost.pet_id, data: newPost as PetbookPost });
-    }
-  };
+        if (profile) {
+            setUserProfile(profile);
+            
+            const petsPromise = supabase.from('pets').select('*').eq('auth_user_id', userId);
+            // In a real app, you'd fetch timeline, vets, products etc. here too
+            // For now, we'll keep it simple
+            const [{ data: petsData, error: petsError }] = await Promise.all([petsPromise]);
 
-  const handleVetBooking = async (bookingInfo: { pet_id: string; vet: Vet; dateTime: string; consultationType: 'in-clinic' | 'video' }) => {
-    if (!session) return;
-    const payload: Omit<Appointment, 'id' | 'created_at' | 'vet'> = {
-      pet_id: bookingInfo.pet_id,
-      vet_id: bookingInfo.vet.id,
-      auth_user_id: session.user.id,
-      status: 'booked',
-      notes: JSON.stringify({ dateTime: bookingInfo.dateTime, consultationType: bookingInfo.consultationType })
-    };
-    const { data: newAppointment, error } = await supabase.from('appointment').insert(payload).select().single();
-    if (!error && newAppointment) {
-      const entryData = { ...newAppointment, vet: bookingInfo.vet } as Appointment;
-      addTimelineEntry({ id: newAppointment.id, timestamp: newAppointment.created_at, type: 'appointment', pet_id: newAppointment.pet_id, data: entryData });
-      setActiveScreen('home');
-    }
-  };
+            if (petsError) throw petsError;
+            
+            setPets(petsData || []);
+        } else {
+            // New user, profile doesn't exist yet. The ProfileSetupScreen will be shown.
+            setUserProfile(null);
+        }
 
-  const handleHealthCheckResult = async (result: { petId: string; photo: string; notes: string; result: HealthCheckResult; }) => {
-    if (!session) return;
-    const payload: Omit<AIFeedback, 'id' | 'submitted_at'> = {
-      pet_id: result.petId,
-      auth_user_id: session.user.id,
-      input_data: { photo_url: result.photo, notes: result.notes },
-      ai_response: JSON.stringify(result.result),
-      status: 'completed',
-    };
-    const { data: newFeedback, error } = await supabase.from('ai_feedback').insert(payload).select().single();
-    if (!error && newFeedback) {
-      addTimelineEntry({ id: newFeedback.id, timestamp: newFeedback.submitted_at, type: 'health_check', pet_id: newFeedback.pet_id, data: newFeedback as AIFeedback });
+    } catch (error) {
+        console.error("Error fetching initial data:", error);
+    } finally {
+        setIsLoading(false);
     }
   };
   
-  const handleModalClose = () => {
-    setActiveModal(null);
-    stopCamera();
-    setProductContext(null);
-    setChatContext(undefined);
+  const handleProfileSetupComplete = async (
+      profileData: Omit<UserProfile, 'auth_user_id' | 'email'>, 
+      petData: Omit<Pet, 'id' | 'auth_user_id' | 'notes'>
+  ) => {
+      if (!session) return;
+      
+      const newProfile = {
+          auth_user_id: session.user.id,
+          email: session.user.email!,
+          ...profileData
+      };
+      const { error: profileError } = await supabase.from('profiles').insert(newProfile);
+      if (profileError) {
+          console.error("Error creating profile:", profileError);
+          // Handle error (e.g., show a message to the user)
+          return;
+      }
+      setUserProfile(newProfile);
+
+      const newPet = {
+          auth_user_id: session.user.id,
+          ...petData
+      };
+      const { error: petError } = await supabase.from('pets').insert(newPet);
+      if (petError) {
+          console.error("Error creating pet:", petError);
+          // Handle error
+          return;
+      }
+
+      // Refetch pets to get the one with the new ID
+      const { data: petsData } = await supabase.from('pets').select('*').eq('auth_user_id', session.user.id);
+      setPets(petsData || []);
   };
-  
-  const handleNavigation = (screen: ActiveScreen) => setActiveScreen(screen);
-  const startCamera = async () => {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && videoRef.current) {
+
+  const handleLogout = async () => {
+    setIsLoading(true);
+    await supabase.auth.signOut();
+    // The onAuthStateChange listener will handle resetting state
+  };
+
+
+  const handleHealthCheck = async (imageFile: File, notes: string) => {
+    if (!pets.length) {
+      setHealthCheckError("Please add a pet to your profile first.");
+      return;
+    }
+    setIsCheckingHealth(true);
+    setHealthCheckResult(null);
+    setHealthCheckError(null);
+
+    const reader = new FileReader();
+    reader.readAsDataURL(imageFile);
+    reader.onloadend = async () => {
+      const base64String = (reader.result as string).split(',')[1];
+      const pet = pets[0]; // Assuming first pet for simplicity
+      const age = new Date().getFullYear() - new Date(pet.birth_date).getFullYear();
+
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        videoRef.current.srcObject = stream;
-      } catch (err) { console.error("Error accessing camera:", err); }
+        const result = await geminiService.analyzePetHealth(
+          base64String,
+          imageFile.type,
+          notes,
+          { name: pet.name, breed: pet.breed, age: `${age} years` }
+        );
+        setHealthCheckResult(result);
+      } catch (error: any) {
+        setHealthCheckError(error.message);
+      } finally {
+        setIsCheckingHealth(false);
+      }
+    };
+  };
+  
+  const handleImageCapture = () => {
+    imageCaptureRef.current?.click();
+  };
+  
+  const onImageFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // For now, let's just log it. This would trigger the health check modal.
+      console.log("Image selected:", file.name);
+      setActiveModal('health');
     }
   };
-  const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
-    }
-  };
-  const takePicture = (): string | null => {
-    if (videoRef.current && canvasRef.current) {
-      const v = videoRef.current, c = canvasRef.current;
-      c.width = v.videoWidth; c.height = v.videoHeight;
-      c.getContext('2d')?.drawImage(v, 0, 0, c.width, c.height);
-      return c.toDataURL('image/jpeg');
-    }
-    return null;
-  };
-  const handleChatOpen = (context?: string) => { setChatContext(context); setActiveModal('chat'); };
-  const handleOpenEssentials = (productName?: string) => { if (productName) setProductContext(productName); setActiveScreen('essentials'); };
+  
+  const handleChatSubmit = async (message: string) => {
+    if (!session) return;
+    const userMessage: DBChatMessage = {
+        auth_user_id: session.user.id,
+        sender: 'user',
+        message: message,
+    };
+    setChatMessages(prev => [...prev, userMessage]);
+    setIsAiTyping(true);
 
-  const renderScreen = () => {
-    if (!userProfile) return <LoadingScreen />; // Should be handled by top-level render logic, but as a safeguard
-    switch(activeScreen) {
-        case 'home': return <HomeScreen userProfile={userProfile} onNavigate={setActiveScreen} onOpenModal={setActiveModal} onAskExpert={handleChatOpen} timeline={timeline} pets={pets} encyclopedia={encyclopedia} />;
-        case 'book': return <PetBookScreen timeline={timeline} pets={pets} onAddPost={handleAddPost} />;
-        case 'essentials': return <MarketplaceScreen initialSearch={productContext} products={products} />;
-        case 'vet': return <VetBookingScreen vets={vets} onBook={handleVetBooking} pets={pets} />;
-        case 'profile': return <ProfileScreen userProfile={userProfile} pets={pets} setUserProfile={setUserProfile} setPets={setPets} session={session!} />;
-        case 'petDataAI': return <PetDataAIModal encyclopedia={encyclopedia} onClose={() => setActiveScreen('home')} onAskExpert={handleChatOpen} />;
-        default: return <HomeScreen userProfile={userProfile} onNavigate={setActiveScreen} onOpenModal={setActiveModal} onAskExpert={handleChatOpen} timeline={timeline} pets={pets} encyclopedia={encyclopedia} />;
+    const geminiHistory: GeminiChatMessage[] = chatMessages.map(msg => ({
+        role: msg.sender,
+        parts: [{ text: msg.message }]
+    }));
+
+    try {
+        let fullResponse = "";
+        const stream = geminiService.getChatStream(geminiHistory, message);
+
+        for await (const chunk of stream) {
+            fullResponse += chunk;
+            setChatMessages(prev => {
+                const lastMessage = prev[prev.length - 1];
+                if (lastMessage.sender === 'model') {
+                    // Update the last message from the model
+                    const newMessages = [...prev.slice(0, -1)];
+                    newMessages.push({ ...lastMessage, message: fullResponse });
+                    return newMessages;
+                } else {
+                    // Add a new message from the model
+                    return [...prev, { auth_user_id: session.user.id, sender: 'model', message: fullResponse }];
+                }
+            });
+        }
+        
+        // Save both messages to DB after stream is complete
+        await supabase.from('chat_messages').insert([
+            { auth_user_id: session.user.id, sender: 'user', message: message },
+            { auth_user_id: session.user.id, sender: 'model', message: fullResponse }
+        ]);
+
+    } catch (error) {
+        console.error("Chat error:", error);
+        const errorMessage: DBChatMessage = {
+            auth_user_id: session.user.id,
+            sender: 'model',
+            message: "Sorry, I'm having trouble connecting right now. Please try again later.",
+        };
+        setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+        setIsAiTyping(false);
     }
+  };
+
+  // --- RENDER LOGIC ---
+
+  if (!apiKeyExists) {
+    return <ApiKeyPrompt />;
   }
 
-  if (!apiKeyExists) return <ApiKeyPrompt />;
-  if (isLoading) return <LoadingScreen />;
-  if (!session) return <AuthScreen />;
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+  
+  if (!session) {
+      return <AuthScreen />;
+  }
+  
+  // Check if the user's email is verified after signup
+  if (session.user && !session.user.email_confirmed_at) {
+    // This logic might need adjustment based on when `email_confirmed_at` gets populated.
+    // Supabase might require a page refresh or re-login after email verification.
+    const isNewUser = (new Date().getTime() - new Date(session.user.created_at).getTime()) < 5 * 60 * 1000; // 5 minutes threshold
+    if (isNewUser) {
+       return <EmailVerificationScreen email={session.user.email!} />;
+    }
+  }
 
   if (!userProfile) {
-    // User is authenticated but has no app profile.
-    // Check if their email is confirmed before allowing profile creation.
-    const isEmailUser = session.user.app_metadata.provider === 'email';
-    const isConfirmed = !!session.user.email_confirmed_at || !!session.user.confirmed_at;
-
-    if (isEmailUser && !isConfirmed) {
-      return <EmailVerificationScreen email={session.user.email!} />;
-    }
-    
-    // If confirmed (or using OAuth), let them create a profile.
-    return <ProfileSetupScreen user={session.user} onSetupComplete={handleProfileAndPetSetup} />;
+    return <ProfileSetupScreen user={session.user} onSetupComplete={handleProfileSetupComplete} />;
   }
+  
+  const currentPet = pets.length > 0 ? pets[0] : null;
+
+  const renderActiveScreen = () => {
+    switch (activeScreen) {
+      // Define other screens here later
+      // case 'book': return <PetBookScreen ... />;
+      // case 'essentials': return <EssentialsScreen ... />;
+      // case 'vet': return <VetBookingScreen ... />;
+      // case 'profile': return <ProfileScreen ... />;
+      default:
+        return (
+          <main className="container mx-auto p-4 pb-24">
+            <div className="text-center mb-8">
+                <img src={currentPet?.photo_url} alt={currentPet?.name} className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-white shadow-lg" />
+                <h2 className="text-3xl font-bold text-gray-800">Hi, {userProfile.name}!</h2>
+                <p className="text-gray-600 text-lg">How can Dumble help {currentPet?.name || 'your pet'} today?</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FeatureCard
+                title="AI Health Check"
+                description="Snap a photo for a quick wellness scan."
+                icon={ICONS.HEALTH_CHECK}
+                color="bg-teal-100"
+                textColor="text-teal-800"
+                onClick={() => setActiveModal('health')}
+                disabled={!currentPet}
+              />
+              <FeatureCard
+                title="Book a Vet"
+                description="Find and schedule appointments nearby."
+                icon={ICONS.VET_BOOKING}
+                color="bg-cyan-100"
+                textColor="text-cyan-800"
+                onClick={() => setActiveScreen('vet')}
+              />
+              <FeatureCard
+                title="Pet Essentials"
+                description="Shop for curated food, toys, and more."
+                icon={ICONS.PET_ESSENTIALS}
+                color="bg-rose-100"
+                textColor="text-rose-800"
+                onClick={() => setActiveScreen('essentials')}
+              />
+              <FeatureCard
+                title="Pet Book"
+                description="A digital diary of your pet's life."
+                icon={ICONS.PET_BOOK}
+                color="bg-amber-100"
+                textColor="text-amber-800"
+                onClick={() => setActiveScreen('book')}
+              />
+            </div>
+          </main>
+        );
+    }
+  };
+  
+   const renderModal = () => {
+    if (!activeModal) return null;
+    
+    switch (activeModal) {
+      case 'health':
+        const HealthCheckContent: React.FC = () => {
+          const [photo, setPhoto] = useState<File | null>(null);
+          const [notes, setNotes] = useState('');
+          const fileInputRef = useRef<HTMLInputElement>(null);
+
+          const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+              if (e.target.files?.[0]) {
+                  setPhoto(e.target.files[0]);
+              }
+          };
+          
+          const handleSubmit = (e: React.FormEvent) => {
+              e.preventDefault();
+              if (photo) {
+                  handleHealthCheck(photo, notes);
+              }
+          }
+
+          if (isCheckingHealth) {
+              return (
+                <div className="text-center p-8">
+                  <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div>
+                  <h3 className="text-xl font-semibold mt-4">Dumble is analyzing...</h3>
+                  <p className="text-gray-600">This might take a moment. We're checking for any signs we should pay attention to.</p>
+                </div>
+              );
+          }
+          
+          if (healthCheckError) {
+              return (
+                <div className="text-center p-8">
+                    <div className="text-5xl mb-4">😢</div>
+                    <h3 className="text-xl font-bold text-red-600">Analysis Failed</h3>
+                    <p className="text-gray-600 mb-4">{healthCheckError}</p>
+                    <button onClick={() => { setHealthCheckError(null); setPhoto(null); }} className="bg-teal-500 text-white font-bold py-2 px-4 rounded-lg">Try Again</button>
+                </div>
+              );
+          }
+          
+          if (healthCheckResult) {
+            return (
+                <div>
+                    <h3 className="text-2xl font-bold text-center text-gray-800 mb-4">Wellness Card for {currentPet?.name}</h3>
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+                        <p><strong>Breed Match:</strong> {healthCheckResult.breed}</p>
+                        <p><strong>Health Analysis:</strong> {healthCheckResult.healthAnalysis}</p>
+                        <div>
+                            <strong>Care Tips:</strong>
+                            <ul className="list-disc list-inside ml-4">
+                                {healthCheckResult.careTips.map((tip, i) => <li key={i}>{tip}</li>)}
+                            </ul>
+                        </div>
+                        {healthCheckResult.vetRecommendation && <div className="p-3 bg-red-100 text-red-800 rounded-lg font-semibold">⚠️ We recommend a quick visit to the vet.</div>}
+                        {healthCheckResult.groomingRecommendation && <div className="p-3 bg-blue-100 text-blue-800 rounded-lg font-semibold">🛁 A grooming session might be a good idea!</div>}
+                        {healthCheckResult.productRecommendations.length > 0 && <div>
+                            <strong>Suggested Products:</strong>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                                {healthCheckResult.productRecommendations.map((prod, i) => <span key={i} className="bg-gray-200 text-gray-700 px-2 py-1 rounded-full text-sm">{prod}</span>)}
+                            </div>
+                        </div>}
+                    </div>
+                     <button onClick={() => { setHealthCheckResult(null); setPhoto(null); }} className="w-full mt-4 bg-teal-500 text-white font-bold py-2 px-4 rounded-lg">Check Another Photo</button>
+                </div>
+            );
+          }
+
+          return (
+            <form onSubmit={handleSubmit}>
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2">Upload or Take a Photo</label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:bg-gray-50" onClick={() => fileInputRef.current?.click()}>
+                    <input type="file" accept="image/*" capture="environment" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+                    {photo ? (
+                        <div>
+                            <img src={URL.createObjectURL(photo)} alt="Pet preview" className="max-h-40 mx-auto rounded-lg" />
+                            <p className="mt-2 text-sm text-gray-600">{photo.name}</p>
+                        </div>
+                    ) : (
+                        <div>
+                            <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>
+                            <p className="mt-2">Click to upload an image</p>
+                            <p className="text-xs text-gray-500">PNG, JPG up to 10MB</p>
+                        </div>
+                    )}
+                </div>
+              </div>
+               <div className="mb-4">
+                  <label htmlFor="notes" className="block text-gray-700 text-sm font-bold mb-2">Any specific concerns?</label>
+                  <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-teal-500" placeholder="e.g., 'He's been scratching his ear a lot.'"></textarea>
+               </div>
+              <button type="submit" disabled={!photo} className="w-full bg-teal-500 text-white font-bold py-3 px-4 rounded-xl text-lg hover:opacity-90 transition-opacity shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                Analyze Pet Health
+              </button>
+            </form>
+          );
+        };
+        return <Modal title="AI Health Check" onClose={() => setActiveModal(null)}><HealthCheckContent /></Modal>;
+      
+      case 'chat':
+        const ChatContent: React.FC = () => {
+            const [newMessage, setNewMessage] = useState('');
+            const chatContainerRef = useRef<HTMLDivElement>(null);
+            
+            useEffect(() => {
+                chatContainerRef.current?.scrollTo(0, chatContainerRef.current.scrollHeight);
+            }, [chatMessages, isAiTyping]);
+
+            const handleFormSubmit = (e: React.FormEvent) => {
+                e.preventDefault();
+                if (newMessage.trim()) {
+                    handleChatSubmit(newMessage.trim());
+                    setNewMessage('');
+                }
+            };
+            
+            return (
+                <div className="h-[70vh] flex flex-col">
+                    <div ref={chatContainerRef} className="flex-grow overflow-y-auto pr-2 space-y-4">
+                       {chatMessages.map((msg, index) => (
+                           <div key={index} className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : ''}`}>
+                               {msg.sender === 'model' && <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center text-white text-lg flex-shrink-0">D</div>}
+                               <div
+                                   className={`max-w-xs md:max-w-md p-3 rounded-2xl ${msg.sender === 'user' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-200 text-gray-800 rounded-bl-none'}`}
+                                   dangerouslySetInnerHTML={{ __html: marked(msg.message) }}
+                               />
+                           </div>
+                       ))}
+                       {isAiTyping && (
+                           <div className="flex items-end gap-2">
+                               <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center text-white text-lg flex-shrink-0">D</div>
+                               <div className="p-3 bg-gray-200 rounded-2xl rounded-bl-none">
+                                   <div className="flex items-center gap-1">
+                                       <span className="h-2 w-2 bg-gray-500 rounded-full animate-bounce delay-0"></span>
+                                       <span className="h-2 w-2 bg-gray-500 rounded-full animate-bounce delay-150"></span>
+                                       <span className="h-2 w-2 bg-gray-500 rounded-full animate-bounce delay-300"></span>
+                                   </div>
+                               </div>
+                           </div>
+                       )}
+                    </div>
+                    <form onSubmit={handleFormSubmit} className="mt-4 flex gap-2 pt-2 border-t">
+                        <input
+                            type="text"
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            placeholder="Ask Dumble anything..."
+                            className="flex-grow border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-teal-500"
+                            disabled={isAiTyping}
+                        />
+                        <button type="submit" className="bg-teal-500 text-white p-3 rounded-lg disabled:opacity-50" disabled={isAiTyping || !newMessage.trim()}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                        </button>
+                    </form>
+                </div>
+            );
+        };
+        return <Modal title="Chat with Dumble" onClose={() => setActiveModal(null)} size="md"><ChatContent /></Modal>;
+        
+      default:
+        return null;
+    }
+  };
+  
 
   return (
-    <div className="min-h-screen flex flex-col bg-white pb-20">
-      <main className="flex-grow w-full max-w-4xl mx-auto">
-        {renderScreen()}
-      </main>
-      <button onClick={() => handleChatOpen()} className="fixed bottom-24 right-6 md:bottom-6 bg-[#D9D2EF] text-purple-800 p-4 rounded-full shadow-lg hover:bg-purple-200 transition-transform transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-purple-300 z-30" aria-label="Chat with Dumble AI">
-        {ICONS.CHAT}
+    <div className="min-h-screen bg-gray-50 text-gray-800">
+      <header className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white p-4 shadow-md w-full sticky top-0 z-20">
+        <div className="container mx-auto flex items-center justify-between">
+          <div className="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mr-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 3.5a1.5 1.5 0 013 0V4a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3h.5a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-.5a1.5 1.5 0 00-3 0v.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-3a1 1 0 00-1-1h-.5a1.5 1.5 0 010-3H4a1 1 0 001-1V6a1 1 0 011-1h3a1 1 0 001-1v-.5z" />
+              </svg>
+              <h1 className="text-3xl font-bold tracking-tight">Dumble's Door</h1>
+          </div>
+          <button onClick={() => setActiveScreen('profile')} className="rounded-full h-10 w-10 bg-white/30 hover:bg-white/50 flex items-center justify-center" aria-label="Open Profile">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+              </svg>
+          </button>
+        </div>
+      </header>
+
+      {renderActiveScreen()}
+      {renderModal()}
+      
+      {/* Floating Chat Button */}
+      <button 
+        onClick={() => setActiveModal('chat')}
+        className="fixed bottom-24 right-4 bg-gradient-to-r from-[#FF6464] to-red-500 text-white rounded-full p-4 shadow-lg transform transition-transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-red-300"
+        aria-label="Open Chat"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2zM7 8H5v2h2V8zm2 0h2v2H9V8zm6 0h-2v2h2V8z" clipRule="evenodd" />
+        </svg>
       </button>
-      <BottomNav onNavigate={handleNavigation} activeScreen={activeScreen} />
-      {activeModal === 'health' && <HealthCheckModal onClose={handleModalClose} onResult={handleHealthCheckResult} startCamera={startCamera} stopCamera={stopCamera} takePicture={takePicture} videoRef={videoRef} canvasRef={canvasRef} onOpenChat={handleChatOpen} onBookVet={() => setActiveScreen('vet')} onOpenEssentials={handleOpenEssentials} pets={pets} />}
-      {activeModal === 'chat' && <ChatModal onClose={handleModalClose} context={chatContext} userProfile={userProfile} />}
+
+      <BottomNav onNavigate={setActiveScreen} activeScreen={activeScreen} />
+      
+      {/* Hidden file input for camera access */}
+      <input type="file" accept="image/*" capture="environment" ref={imageCaptureRef} onChange={onImageFileSelected} style={{ display: 'none' }} />
     </div>
   );
 };
-
-// --- SCREEN IMPLEMENTATIONS ---
-
-const HomeScreen: React.FC<{ userProfile: UserProfile; onNavigate: (s: ActiveScreen) => void; onOpenModal: (m: ActiveModal) => void; onAskExpert: (context: string) => void; timeline: TimelineEntry[]; pets: Pet[]; encyclopedia: EncyclopediaTopic[] }> = ({ userProfile, onNavigate, onOpenModal, onAskExpert, timeline, pets, encyclopedia }) => {
-    const getPetById = (id: string) => pets.find(p => p.id === id);
-    const [petOfTheDay, setPetOfTheDay] = useState<EncyclopediaTopic | null>(null);
-
-    useEffect(() => {
-        if (encyclopedia.length > 0) {
-            const randomIndex = Math.floor(Math.random() * encyclopedia.length);
-            setPetOfTheDay(encyclopedia[randomIndex]);
-        }
-    }, [encyclopedia]);
-
-    return (
-        <div className="p-6 space-y-8">
-            <header className="flex justify-between items-center">
-                <div>
-                    <p className="text-gray-500">Welcome back,</p>
-                    <h1 className="text-3xl font-bold text-gray-800">{userProfile.name}!</h1>
-                </div>
-                 <button onClick={() => onNavigate('profile')} className="rounded-full h-14 w-14 bg-gray-200 ring-2 ring-offset-2 ring-[#FF6464]/50 flex items-center justify-center" aria-label="Open Profile">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                    </svg>
-                </button>
-            </header>
-             <section className="text-center">
-                 <h2 className="text-2xl font-bold text-gray-800 mb-4">Your Pet's Wellness Hub</h2>
-                <div className="flex flex-col items-center gap-6">
-                    <button onClick={() => onOpenModal('health')} className="group relative w-44 h-44 bg-gradient-to-br from-[#FF6464] to-red-400 rounded-3xl shadow-lg flex items-center justify-center text-white transition-all transform hover:scale-105 hover:shadow-2xl duration-300" aria-label="AI Health Check">
-                        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="transition-transform group-hover:scale-110 duration-300"><path d="M4 8V6C4 4.89543 4.89543 4 6 4H8" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M4 16V18C4 19.1046 4.89543 20 6 20H8" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M16 4H18C19.1046 4 20 4.89543 20 6V8" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M16 20H18C19.1046 20 20 19.1046 20 18V16" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="12" r="3" stroke="white" strokeWidth="2"/></svg>
-                        <span className="absolute bottom-5 text-lg font-bold tracking-wide">AI Health Scan</span>
-                    </button>
-                    <div className="flex gap-4">
-                        <button onClick={() => onNavigate('vet')} className="bg-white border-2 border-gray-200 text-gray-700 font-bold py-3 px-6 rounded-2xl text-md hover:bg-gray-100 transition-all transform hover:scale-105 shadow-sm">Book a Vet</button>
-                        <button onClick={() => onNavigate('book')} className="bg-white border-2 border-gray-200 text-gray-700 font-bold py-3 px-6 rounded-2xl text-md hover:bg-gray-100 transition-all transform hover:scale-105 shadow-sm">Pet Book</button>
-                    </div>
-                </div>
-            </section>
-            
-            {petOfTheDay && (
-                <section>
-                    <h2 className="text-2xl font-bold text-gray-800 mb-4">🌟 Pet of the Day</h2>
-                    <button 
-                        onClick={() => onAskExpert(`Tell me more about the ${petOfTheDay.breed}.`)}
-                        className="w-full text-left bg-gradient-to-r from-yellow-50 to-orange-50 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row items-center gap-4 hover:-translate-y-1 transition-transform duration-300"
-                    >
-                        <img src={petOfTheDay.image} alt={petOfTheDay.breed} className="w-full md:w-32 h-32 rounded-lg object-cover" />
-                        <div className="flex-1">
-                            <h3 className="text-xl font-bold text-gray-900">{petOfTheDay.breed}</h3>
-                            <p className="text-gray-600 mt-1">
-                                <span className="font-semibold">Did you know?</span> {petOfTheDay.funFactsIndia[0] || 'This pet is amazing!'}
-                            </p>
-                            <p className="text-sm text-yellow-700 font-semibold mt-2">Tap to learn more!</p>
-                        </div>
-                    </button>
-                </section>
-            )}
-
-            <section>
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">Our Services</h2>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <FeatureCard title="Book a Vet" description="Find local experts" icon={<div className="text-teal-500">{ICONS.VET_BOOKING}</div>} color="bg-teal-50" textColor="text-teal-800" onClick={() => onNavigate('vet')} />
-                    <FeatureCard title="Marketplace" description="Pet essentials" icon={<div className="text-rose-500">{ICONS.PET_ESSENTIALS}</div>} color="bg-rose-50" textColor="text-rose-800" onClick={() => onNavigate('essentials')} />
-                    <FeatureCard title="Pet Encyclopedia" description="Breed guides" icon={<div className="text-sky-500">{ICONS.DATA_AI}</div>} color="bg-sky-50" textColor="text-sky-800" onClick={() => onNavigate('petDataAI')} />
-                    <FeatureCard title="Pet Book" description="Digital log" icon={<div className="text-purple-500">{ICONS.PET_BOOK}</div>} color="bg-purple-50" textColor="text-purple-800" onClick={() => onNavigate('book')} />
-                </div>
-            </section>
-            <section>
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">Recent Activity</h2>
-                <div className="space-y-3">
-                    {timeline.length > 0 ? timeline.slice(0, 3).map(entry => {
-                         const pet = getPetById(entry.pet_id);
-                         return (
-                            <div key={entry.id} className="bg-slate-50 p-4 rounded-xl flex items-center gap-4">
-                                {pet && <img src={pet.photo_url} alt={pet.name} className="h-12 w-12 rounded-full object-cover" />}
-                                <div>
-                                    <p className="font-semibold text-gray-700">
-                                        {entry.type === 'post' && `You posted about ${pet?.name || 'your pet'}.`}
-                                        {entry.type === 'health_check' && `AI Health Check for ${pet?.name} completed.`}
-                                        {entry.type === 'appointment' && `Vet appointment booked for ${pet?.name}.`}
-                                    </p>
-                                    <p className="text-xs text-gray-500">{new Date(entry.timestamp).toLocaleDateString()}</p>
-                                </div>
-                            </div>
-                         )
-                    }) : (
-                        <p className="text-center text-gray-500 bg-slate-50 p-6 rounded-lg">No recent activity. Try an AI Health Scan to get started!</p>
-                    )}
-                </div>
-            </section>
-        </div>
-    )
-}
-
-const HealthCheckModal: React.FC<{
-    onClose: () => void;
-    onResult: (result: { petId: string; photo: string; notes: string; result: HealthCheckResult; }) => void;
-    startCamera: () => void; stopCamera: () => void; takePicture: () => string | null;
-    videoRef: React.RefObject<HTMLVideoElement>; canvasRef: React.RefObject<HTMLCanvasElement>;
-    onOpenChat: (context: string) => void; onBookVet: () => void; onOpenEssentials: (productName: string) => void;
-    pets: Pet[];
-}> = ({ onClose, onResult, startCamera, stopCamera, takePicture, videoRef, canvasRef, onOpenChat, onBookVet, onOpenEssentials, pets }) => {
-    const [selectedPetId, setSelectedPetId] = useState<string>('');
-    const [photo, setPhoto] = useState<string | null>(null);
-    const [notes, setNotes] = useState('');
-    const [result, setResult] = useState<HealthCheckResult | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [isCameraOn, setIsCameraOn] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => { setPhoto(event.target?.result as string); setIsCameraOn(false); stopCamera(); };
-            reader.readAsDataURL(file);
-        }
-    };
-    const handleCameraToggle = () => {
-        if (isCameraOn) { stopCamera(); setIsCameraOn(false); }
-        else { setPhoto(null); startCamera(); setIsCameraOn(true); }
-    };
-    const handleTakePicture = () => {
-        const pic = takePicture();
-        if (pic) { setPhoto(pic); stopCamera(); setIsCameraOn(false); }
-    };
-    useEffect(() => { return () => stopCamera(); }, [stopCamera]);
-
-    const handleSubmit = async () => {
-        if (!photo) { setError('Please upload or take a photo.'); return; }
-        const selectedPet = pets.find(p => p.id === selectedPetId); // Can be undefined
-
-        setIsLoading(true); setError(null); setResult(null);
-        try {
-            const base64Data = photo.split(',')[1];
-            const mimeType = photo.match(/:(.*?);/)?.[1] ?? 'image/jpeg';
-            const petContext = selectedPet 
-                ? { name: selectedPet.name, breed: selectedPet.breed, age: '' } 
-                : { name: 'your pet', breed: 'Unknown', age: 'Unknown' };
-            
-            const analysisResult = await geminiService.analyzePetHealth(base64Data, mimeType, notes, petContext);
-            setResult(analysisResult);
-
-            // Only save the result if a pet was selected
-            if (selectedPetId) {
-                onResult({ petId: selectedPetId, photo, notes, result: analysisResult });
-            }
-        } catch (err: any) { setError(err.message || "An unknown error occurred."); }
-        finally { setIsLoading(false); }
-    };
-
-    return (
-        <Modal title="AI Health Check" onClose={onClose}>
-            {!result ? (
-                <div className="space-y-4">
-                     <div>
-                        <label htmlFor="pet" className="block text-sm font-medium text-gray-700 mb-1">For which pet? (Optional)</label>
-                        {pets.length > 0 ? (
-                            <select id="pet" value={selectedPetId} onChange={e => setSelectedPetId(e.target.value)} className="w-full border-gray-300 rounded-lg">
-                                <option value="">General Analysis (don't link to a pet)</option>
-                                {pets.map(pet => <option key={pet.id} value={pet.id}>{pet.name} ({pet.breed})</option>)}
-                            </select>
-                        ) : (
-                            <p className="text-center text-gray-500 bg-gray-100 p-3 rounded-lg">Add a pet in your profile for personalized analysis and history.</p>
-                        )}
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                        <div className="bg-gray-100 rounded-lg aspect-square flex items-center justify-center overflow-hidden">
-                            {photo ? <img src={photo} alt="Pet preview" className="object-cover w-full h-full" /> : 
-                             isCameraOn ? <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted /> :
-                            <p className="text-gray-500">Photo Preview</p>}
-                            <canvas ref={canvasRef} className="hidden" />
-                        </div>
-                        <div className="flex flex-col gap-3">
-                           <button onClick={() => fileInputRef.current?.click()} className="w-full bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600">Upload Photo</button>
-                           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
-                           <button onClick={handleCameraToggle} className={`w-full font-semibold py-2 px-4 rounded-lg ${isCameraOn ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-600 hover:bg-gray-700'} text-white`}>{isCameraOn ? 'Stop Camera' : 'Start Camera'}</button>
-                           {isCameraOn && <button onClick={handleTakePicture} className="w-full bg-teal-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-teal-600">Take Picture</button>}
-                        </div>
-                    </div>
-                    <div>
-                        <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">Optional Notes</label>
-                        <textarea id="notes" value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="w-full border-gray-300 rounded-lg" placeholder="e.g., My dog is scratching its ear a lot."></textarea>
-                    </div>
-                    {error && <p className="text-red-500 text-sm">{error}</p>}
-                    <button onClick={handleSubmit} disabled={isLoading || !photo} className="w-full bg-[#FF6464] text-white font-bold py-3 px-4 rounded-lg hover:bg-red-500 disabled:bg-gray-400 flex items-center justify-center">
-                        {isLoading ? 'Analyzing...' : 'Get AI Analysis'}
-                    </button>
-                </div>
-            ) : (
-                 <div className="space-y-4">
-                    <h3 className="text-2xl font-bold text-gray-800 text-center">Analysis for {pets.find(p=>p.id === selectedPetId)?.name || 'your pet'} Complete!</h3>
-                    <div className="p-4 bg-teal-50 rounded-lg border-l-4 border-teal-400">
-                        <h4 className="font-bold text-lg text-teal-800">Breed</h4>
-                        <p className="text-gray-700">{result.breed}</p>
-                    </div>
-                    <div className="p-4 bg-amber-50 rounded-lg border-l-4 border-amber-400 space-y-3">
-                        <h4 className="font-bold text-lg text-amber-800">Health Analysis 🩺</h4>
-                        <p className="text-gray-800">{result.healthAnalysis}</p>
-                        {result.careTips.length > 0 && (
-                            <div>
-                                <p className="font-semibold text-gray-800">Key Recommendations:</p>
-                                <ul className="list-disc list-inside ml-4 mt-1 space-y-1 text-gray-700">
-                                    {result.careTips.map((tip, index) => <li key={index}>{tip}</li>)}
-                                </ul>
-                            </div>
-                        )}
-                        <p className="text-xs text-gray-500 pt-3 border-t border-amber-200 mt-3 italic">
-                            Disclaimer: This AI analysis is not a substitute for a professional veterinary diagnosis. Always consult a vet for health concerns.
-                        </p>
-                    </div>
-                    <div className="space-y-3 pt-4">
-                        {result.vetRecommendation && <button onClick={() => { onClose(); onBookVet(); }} className="w-full text-lg bg-red-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-red-600 transition-colors">Book a Vet Appointment</button>}
-                        {result.groomingRecommendation && <button onClick={() => alert("Grooming booking feature coming soon!")} className="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors">Book a Grooming Session</button>}
-                        {result.productRecommendations.length > 0 && (
-                            <div className="p-4 bg-rose-50 rounded-lg">
-                                <h4 className="font-bold text-rose-800">Recommended Products:</h4>
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                {result.productRecommendations.map(prod => (
-                                    <button key={prod} onClick={() => { onClose(); onOpenEssentials(prod); }} className="bg-rose-200 text-rose-800 text-sm font-semibold px-3 py-1 rounded-full hover:bg-rose-300">{prod}</button>
-                                ))}
-                                </div>
-                           </div>
-                        )}
-                    </div>
-                    <div className="mt-4 p-4 bg-purple-50 border-l-4 border-purple-400 text-purple-800 rounded-r-lg text-center">
-                        <p className="font-semibold">Have more questions?</p>
-                        <button onClick={() => {
-                             const context = `AI analysis:\nBreed: ${result.breed}\nAnalysis: ${result.healthAnalysis}\nCare Tips:\n- ${result.careTips.join('\n- ')}\n\nI have a follow-up question.`;
-                             onOpenChat(context);
-                             onClose();
-                        }} className="mt-1 text-purple-600 font-bold hover:underline">Chat with Dumble AI</button>
-                    </div>
-                </div>
-            )}
-        </Modal>
-    );
-};
-
-const VetBookingScreen: React.FC<{ vets: Vet[], onBook: (bookingInfo: { pet_id: string; vet: Vet; dateTime: string; consultationType: 'in-clinic' | 'video' }) => void; pets: Pet[]; }> = ({ vets, onBook, pets }) => {
-    const [step, setStep] = useState(1);
-    const [selectedVet, setSelectedVet] = useState<Vet | null>(null);
-    const [bookingDetails, setBookingDetails] = useState({ petId: pets.length > 0 ? pets[0].id : '', date: '', time: '', type: 'in-clinic' });
-    
-    const handleSelectVet = (vet: Vet) => { setSelectedVet(vet); setStep(2); };
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        const selectedPet = pets.find(p => p.id === bookingDetails.petId);
-        if (!selectedVet || !selectedPet) return;
-        
-        onBook({
-            pet_id: selectedPet.id,
-            vet: selectedVet,
-            dateTime: `${bookingDetails.date}T${bookingDetails.time}`,
-            consultationType: bookingDetails.type as 'in-clinic' | 'video',
-        });
-        setStep(3);
-    };
-
-    return (
-        <div className="p-6">
-            <ScreenHeader title={step === 1 ? "Book a Vet" : step === 2 ? `Book with ${selectedVet?.name}` : "Booking Confirmed!"} />
-             {step === 1 && (
-                <div className="space-y-4">
-                    <input type="search" placeholder="Search vets or clinics..." className="w-full border-gray-300 rounded-xl p-3" />
-                    {vets.map(vet => (
-                        <div key={vet.id} className="flex items-center gap-4 p-4 border rounded-xl bg-white shadow-sm">
-                            <img src={vet.photo_url} alt={vet.name} className="w-20 h-20 rounded-full object-cover"/>
-                            <div className="flex-grow">
-                                <h4 className="font-bold text-lg">{vet.name}</h4>
-                                <p className="text-sm text-gray-600">{vet.specialization}</p>
-                                <p className="text-sm text-gray-600">{vet.address}, {vet.city}</p>
-                                <p className="text-sm font-semibold text-teal-600">Available: {vet.available_time}</p>
-                            </div>
-                            <button onClick={() => handleSelectVet(vet)} className="bg-[#FF6464] text-white font-bold py-2 px-4 rounded-full hover:bg-red-500">Book</button>
-                        </div>
-                    ))}
-                </div>
-            )}
-            {step === 2 && selectedVet && (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="flex items-center gap-4 p-2 bg-slate-100 rounded-lg">
-                        <img src={selectedVet.photo_url} alt={selectedVet.name} className="w-16 h-16 rounded-full object-cover"/>
-                        <div><h4 className="font-bold">{selectedVet.name}</h4><p className="text-sm text-gray-600">{selectedVet.address}</p></div>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium">Which pet is this for?</label>
-                        {pets.length > 0 ? (
-                            <select value={bookingDetails.petId} onChange={e => setBookingDetails({...bookingDetails, petId: e.target.value})} className="mt-1 block w-full border-gray-300 rounded-md" required>
-                                {pets.map(pet => <option key={pet.id} value={pet.id}>{pet.name} ({pet.breed})</option>)}
-                            </select>
-                        ) : (<p className="text-center text-red-500 bg-red-50 p-3 rounded-lg mt-1">You need to add a pet in your profile first!</p>)}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-sm font-medium">Date</label><input type="date" value={bookingDetails.date} onChange={e => setBookingDetails({...bookingDetails, date: e.target.value})} className="mt-1 block w-full border-gray-300 rounded-md" required /></div>
-                        <div><label className="block text-sm font-medium">Time</label><input type="time" value={bookingDetails.time} onChange={e => setBookingDetails({...bookingDetails, time: e.target.value})} className="mt-1 block w-full border-gray-300 rounded-md" required /></div>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium">Consultation Type</label>
-                        <select value={bookingDetails.type} onChange={e => setBookingDetails({...bookingDetails, type: e.target.value})} className="mt-1 block w-full border-gray-300 rounded-md" required>
-                            <option value='in-clinic'>In-Clinic</option><option value='video'>Video Call</option>
-                        </select>
-                    </div>
-                    <button type="submit" className="w-full bg-[#FF6464] text-white font-bold py-3 rounded-lg hover:bg-red-500 disabled:bg-gray-400" disabled={pets.length === 0}>Confirm Booking</button>
-                </form>
-            )}
-            {step === 3 && (
-                <div className="text-center p-6">
-                    <h3 className="text-2xl font-bold text-gray-800">Your Appointment is Set!</h3>
-                    <p className="text-gray-600 mt-2">Details have been added to your Pet Book.</p>
-                </div>
-            )}
-        </div>
-    );
-};
-
-const MarketplaceScreen: React.FC<{ initialSearch: string | null; products: Product[] }> = ({ initialSearch, products }) => {
-    const [selectedCategory, setSelectedCategory] = useState<Product['category'] | 'All'>('All');
-    const [searchTerm, setSearchTerm] = useState(initialSearch || '');
-
-    const categories: Product['category'][] = ['Food', 'Toys', 'Grooming', 'Medicine', 'Accessories'];
-    const filteredProducts = products.filter(p => (selectedCategory === 'All' || p.category === selectedCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    return (
-        <div className="p-6">
-             <ScreenHeader title="Marketplace" />
-             <div className="space-y-4">
-                <input type="search" placeholder="Search for products..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full border-gray-300 rounded-xl p-3 text-lg" />
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                    <button onClick={() => setSelectedCategory('All')} className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap ${selectedCategory === 'All' ? 'bg-[#28CBC9] text-white' : 'bg-teal-100 text-teal-800'}`}>All</button>
-                    {categories.map(cat => (<button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap ${selectedCategory === cat ? 'bg-[#28CBC9] text-white' : 'bg-teal-100 text-teal-800'}`}>{cat}</button>))}
-                </div>
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredProducts.map(product => (
-                        <div key={product.id} className="border rounded-xl p-4 space-y-3 flex flex-col bg-white shadow-sm">
-                            <div className="bg-gray-100 rounded-lg p-2"><img src={product.image_url} alt={product.name} className="h-32 w-full object-contain rounded-md "/></div>
-                            <h4 className="font-bold text-gray-800 flex-grow">{product.name}</h4>
-                            <p className="font-bold text-lg">₹{product.price.toFixed(2)}</p>
-                            <button className="w-full bg-[#FF6464] text-white font-bold py-2 rounded-lg text-sm">Add to Cart</button>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const PetBookScreen: React.FC<{ timeline: TimelineEntry[]; pets: Pet[]; onAddPost: (post: Omit<PetbookPost, 'id' | 'auth_user_id' | 'created_at'>) => void; }> = ({ timeline, pets, onAddPost }) => {
-    const [showNewPost, setShowNewPost] = useState(false);
-    const [newPostText, setNewPostText] = useState('');
-    const [newPostPetId, setNewPostPetId] = useState<string>(pets.length > 0 ? pets[0].id : '');
-    
-    const getPetById = (id: string) => pets.find(p => p.id === id);
-
-    const handlePostSubmit = () => {
-        if (!newPostText.trim() || !newPostPetId) return;
-        onAddPost({ pet_id: newPostPetId, content: newPostText, image_url: undefined }); // Image upload not implemented for Supabase storage yet
-        setNewPostText(''); setShowNewPost(false);
-    };
-
-    const renderTimelineEntry = (entry: TimelineEntry) => {
-        const pet = getPetById(entry.pet_id);
-        if (!pet) return null;
-
-        let content;
-        switch (entry.type) {
-            case 'post':
-                const postData = entry.data as PetbookPost;
-                content = (
-                    <div className="space-y-3">
-                        <p className="text-gray-800 whitespace-pre-wrap">{postData.content}</p>
-                        {postData.image_url && <img src={postData.image_url} alt="Post" className="rounded-lg max-h-96 w-full object-cover mt-2"/>}
-                    </div>
-                );
-                break;
-            case 'appointment':
-                const apptData = entry.data as Appointment;
-                const notes = JSON.parse(apptData.notes || '{}');
-                content = <p><strong>Milestone:</strong> Vet Appointment booked with {apptData.vet?.name} on {new Date(notes.dateTime).toLocaleDateString()}!</p>;
-                break;
-            case 'health_check':
-                content = <p><strong>Milestone:</strong> AI Health Check Completed!</p>;
-                break;
-            default: return null;
-        }
-
-        return (
-            <div key={entry.id} className="bg-white p-5 rounded-xl shadow-md border">
-                <div className="flex items-center gap-3 mb-3">
-                    <img src={pet.photo_url} alt={pet.name} className="h-12 w-12 rounded-full object-cover" />
-                    <div><span className="font-bold text-gray-800">{pet.name}</span><p className="text-xs text-gray-500">{new Date(entry.timestamp).toLocaleString()}</p></div>
-                </div>
-                {content}
-            </div>
-        )
-    };
-    
-    return (
-        <div className="p-6 relative">
-            <ScreenHeader title="Pet Book" />
-            <div className="space-y-6">
-                {showNewPost && (
-                     <div className="p-4 bg-white rounded-lg shadow-sm border">
-                        <textarea value={newPostText} onChange={e => setNewPostText(e.target.value)} rows={3} className="w-full border-gray-300 rounded-lg text-lg" placeholder="Share a moment..."></textarea>
-                        <div className="flex items-center justify-between mt-2">
-                             <select value={newPostPetId} onChange={e => setNewPostPetId(e.target.value)} className="border-gray-300 rounded-full text-sm px-3 py-1">
-                                {pets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                             </select>
-                            <button onClick={handlePostSubmit} disabled={!newPostPetId} className="bg-[#28CBC9] text-white font-bold py-2 px-6 rounded-full hover:bg-teal-500 transition-colors disabled:bg-gray-400">Post</button>
-                        </div>
-                    </div>
-                )}
-                <div className="space-y-4">
-                    {timeline.length === 0 ? (
-                        <div className="text-center py-16 px-6">
-                            <div className="text-6xl mb-4">🐾</div><h3 className="text-2xl font-bold text-gray-800">Your Pet's Story Starts Here</h3>
-                            <p className="text-gray-500 mt-2 max-w-sm mx-auto">This is your pet's personal timeline. Add a post to capture a memory, log a vet visit, or see an AI health check result.</p>
-                            <button onClick={() => setShowNewPost(true)} className="mt-6 bg-[#FF6464] text-white font-bold py-3 px-6 rounded-full hover:bg-red-500 transition-colors shadow-md">Add Your First Post</button>
-                        </div>
-                    ) : timeline.map(renderTimelineEntry)}
-                </div>
-            </div>
-            <button onClick={() => setShowNewPost(!showNewPost)} className="absolute top-6 right-6 h-14 w-14 bg-[#FF6464] text-white rounded-full shadow-lg flex items-center justify-center text-3xl hover:bg-red-500 transition-all transform hover:scale-110">+</button>
-        </div>
-    );
-};
-
-const ChatModal: React.FC<{ onClose: () => void; context?: string; userProfile: UserProfile; }> = ({ onClose, context, userProfile }) => {
-    const [history, setHistory] = useState<GeminiChatMessage[]>([]);
-    const [message, setMessage] = useState('');
-    const [isStreaming, setIsStreaming] = useState(false);
-    const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-    const chatEndRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const loadHistory = async () => {
-            const { data } = await supabase.from('chat_message').select('*').eq('auth_user_id', userProfile.auth_user_id).order('sent_at');
-            const geminiHistory: GeminiChatMessage[] = data?.map(m => ({ role: m.sender, parts: [{ text: m.message }] })) || [];
-
-            if(context && geminiHistory.length === 0) { // Only add context if it's a new chat
-                geminiHistory.push({ role: 'user', parts: [{ text: context }] });
-                geminiHistory.push({ role: 'model', parts: [{ text: "Hello! I've reviewed the information. How can I help?" }] });
-            }
-            setHistory(geminiHistory);
-            setIsLoadingHistory(false);
-        };
-        loadHistory();
-    }, [context, userProfile.auth_user_id]);
-
-    useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [history]);
-
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!message.trim() || isStreaming) return;
-        
-        const newUserMessage: GeminiChatMessage = { role: 'user', parts: [{ text: message }] };
-        const updatedHistory = [...history, newUserMessage];
-        setHistory(updatedHistory);
-        await supabase.from('chat_message').insert({ auth_user_id: userProfile.auth_user_id, sender: 'user', message });
-
-        setMessage('');
-        setIsStreaming(true);
-
-        try {
-            const stream = geminiService.getChatStream(updatedHistory, message);
-            setHistory(prev => [...prev, { role: 'model', parts: [{ text: ''}] }]);
-            let modelResponse = '';
-            for await (const chunk of stream) {
-                modelResponse += chunk;
-                setHistory(prev => {
-                    const newHistory = [...prev];
-                    newHistory[newHistory.length - 1].parts[0].text = modelResponse;
-                    return newHistory;
-                });
-            }
-            await supabase.from('chat_message').insert({ auth_user_id: userProfile.auth_user_id, sender: 'model', message: modelResponse });
-        } catch (err) {
-            console.error(err);
-        } finally {
-             setIsStreaming(false);
-        }
-    };
-
-    return (
-        <Modal title="Chat with Dumble AI" onClose={onClose} size="md">
-            <div className="flex flex-col h-[70vh]">
-                <div className="flex-grow overflow-y-auto p-4 space-y-4 bg-slate-50 rounded-t-lg">
-                    {isLoadingHistory ? <p>Loading chat...</p> : history.map((msg, index) => (
-                        <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`p-3 rounded-2xl max-w-sm md:max-w-md ${msg.role === 'user' ? 'bg-[#FF6464] text-white' : 'bg-white text-gray-800 shadow-sm'}`}>
-                                <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: marked.parse(msg.parts[0].text) }}></div>
-                            </div>
-                        </div>
-                    ))}
-                    {isStreaming && history.length > 0 && history[history.length-1].role === 'user' && <div className="flex justify-start"><div className="p-3">...</div></div>}
-                    <div ref={chatEndRef} />
-                </div>
-                <form onSubmit={handleSendMessage} className="p-4 border-t bg-white rounded-b-lg flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                        <input type="text" value={message} onChange={e => setMessage(e.target.value)} placeholder="Ask about your pet..." className="flex-grow border-gray-300 rounded-lg" disabled={isStreaming} />
-                        <button type="submit" disabled={isStreaming || !message.trim()} className="bg-[#28CBC9] text-white p-2 rounded-full hover:bg-teal-500 disabled:bg-gray-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </Modal>
-    );
-};
-
-const PetDataAIModal: React.FC<{ encyclopedia: EncyclopediaTopic[], onClose: () => void; onAskExpert: (context: string) => void }> = ({ encyclopedia, onClose, onAskExpert }) => {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filters, setFilters] = useState({ type: 'all' });
-    
-    const filteredBreeds = encyclopedia.filter(pet => 
-        pet.breed.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        (filters.type === 'all' || pet.type === filters.type)
-    );
-
-    return (
-        <div className="p-6">
-            <ScreenHeader title="Pet Encyclopedia" />
-            <div className="space-y-4">
-                 <input type="search" placeholder="Search pets (e.g., 'Labrador', 'Persian Cat')" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full p-3 border-slate-300 rounded-xl text-lg shadow-sm mb-4" />
-                <div className="flex flex-wrap gap-2 items-center mb-4">
-                    <button onClick={() => setFilters({ type: 'all' })} className={`px-4 py-1.5 rounded-full font-semibold whitespace-nowrap text-sm transition-colors ${filters.type === 'all' ? 'bg-[#FF6464] text-white' : 'bg-red-100 text-red-800'}`}>All Breeds</button>
-                    <button onClick={() => setFilters({ type: 'dog' })} className={`px-4 py-1.5 rounded-full font-semibold whitespace-nowrap text-sm transition-colors ${filters.type === 'dog' ? 'bg-yellow-400 text-yellow-900' : 'bg-yellow-100 text-yellow-800'}`}>Dogs</button>
-                    <button onClick={() => setFilters({ type: 'cat' })} className={`px-4 py-1.5 rounded-full font-semibold whitespace-nowrap text-sm transition-colors ${filters.type === 'cat' ? 'bg-[#D9D2EF] text-purple-800' : 'bg-purple-100 text-purple-800'}`}>Cats</button>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                     {filteredBreeds.map(topic => (
-                        <button key={topic.breed} onClick={() => onAskExpert(`Tell me about the ${topic.breed}`)} className="group text-left space-y-2 bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border">
-                            <img src={topic.image} alt={topic.breed} className="w-full h-40 object-cover" />
-                            <div className="p-3"><h4 className="font-bold text-lg">{topic.breed}</h4>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                    {topic.personality.slice(0,2).map(p => <span key={p} className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">{p}</span>)}
-                                </div>
-                            </div>
-                        </button>
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const ProfileScreen: React.FC<{ userProfile: UserProfile; pets: Pet[]; setUserProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>; setPets: React.Dispatch<React.SetStateAction<Pet[]>>; session: Session; }> = ({ userProfile, pets, setUserProfile, setPets, session }) => {
-    const [editingPet, setEditingPet] = useState<Pet | null | 'new'>(null);
-    const [profileData, setProfileData] = useState(userProfile);
-
-    const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => { setProfileData(prev => ({ ...prev, [e.target.name]: e.target.value })); }
-    const handleSaveProfile = async () => { 
-        const { data } = await supabase.from('Dumblesdoor_User').update({ name: profileData.name, email: profileData.email, phone: profileData.phone, city: profileData.city }).eq('auth_user_id', session.user.id).select().single();
-        if (data) setUserProfile(data);
-    }
-    const handleSavePet = async (petData: Omit<Pet, 'id' | 'auth_user_id'>, id?: string) => {
-        if (editingPet === 'new') {
-             const { data, error } = await supabase.from('pet').insert({ ...petData, auth_user_id: userProfile.auth_user_id }).select().single();
-             if (error) {
-                 console.error("Error adding pet:", error);
-                 alert(`Error adding pet: ${error.message}`);
-                 return;
-             }
-             if (data) {
-                setPets(prevPets => [...prevPets, data as Pet]);
-                setEditingPet(null);
-             }
-        } else if (id) { 
-            const { data, error } = await supabase.from('pet').update(petData).eq('id', id).select().single();
-            if (error) {
-                console.error("Error updating pet:", error);
-                alert(`Error updating pet: ${error.message}`);
-                return;
-            }
-            if (data) {
-                setPets(prevPets => prevPets.map(p => p.id === data.id ? data as Pet : p));
-                setEditingPet(null);
-            }
-        }
-    }
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
-    };
-    
-    const PetEditForm: React.FC<{ pet: Pet | null, onSave: (pet: Omit<Pet, 'id'|'auth_user_id'>, id?: string) => void, onCancel: () => void }> = ({ pet, onSave, onCancel }) => {
-        const getInitialData = () => {
-            if (pet) {
-                const { id, auth_user_id, ...data } = pet;
-                return { ...data, notes: data.notes || '' }; // Ensure notes is a string for the form
-            }
-            return { 
-                name: '', 
-                photo_url: PET_AVATARS[0],
-                species: 'Dog', 
-                breed: '', 
-                birth_date: '', 
-                gender: 'Male' as const, 
-                notes: ''
-            };
-        };
-
-        const [formData, setFormData] = useState(getInitialData());
-        const [breedSuggestions, setBreedSuggestions] = useState<string[]>([]);
-        
-        const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => { 
-            const { name, value } = e.target;
-            setFormData(prev => ({...prev, [name]: value})); 
-            
-            if (name === 'breed' && value.length > 1) {
-                const suggestions = ALL_BREEDS.filter(b => b.toLowerCase().includes(value.toLowerCase()));
-                setBreedSuggestions(suggestions.slice(0, 5));
-            } else {
-                setBreedSuggestions([]);
-            }
-        }
-        
-        const handleBreedSelect = (breed: string) => {
-            setFormData(prev => ({...prev, breed: breed}));
-            setBreedSuggestions([]);
-        }
-
-        const handleAvatarSelect = (url: string) => {
-            setFormData(prev => ({...prev, photo_url: url}));
-        }
-        
-        const handleSubmit = (e: React.FormEvent) => {
-            e.preventDefault();
-            const dataToSave = { ...formData, notes: formData.notes || undefined };
-            onSave(dataToSave, pet?.id);
-        }
-
-        return (
-             <form onSubmit={handleSubmit} className="mt-4 p-4 border rounded-2xl bg-white space-y-4 shadow-sm">
-                <h3 className="font-bold text-xl text-center text-gray-800">{pet ? `Edit ${pet.name}` : 'Add New Pet'}</h3>
-                
-                <div>
-                     <label className="block text-sm font-medium text-gray-700 mb-2">Choose an Avatar</label>
-                     <div className="flex flex-wrap gap-3 justify-center">
-                        {PET_AVATARS.map(url => (
-                            <button key={url} type="button" onClick={() => handleAvatarSelect(url)} className={`h-14 w-14 rounded-full overflow-hidden transition-all duration-200 ${formData.photo_url === url ? 'ring-4 ring-offset-2 ring-teal-500 scale-110' : 'ring-2 ring-gray-200 hover:ring-teal-400'}`}>
-                                <img src={url} alt="Pet Avatar" className="w-full h-full object-cover" />
-                            </button>
-                        ))}
-                     </div>
-                </div>
-                
-                <div>
-                    <label htmlFor="pet-name" className="text-sm font-medium text-gray-700">Name</label>
-                    <input id="pet-name" type="text" name="name" value={formData.name} onChange={handleChange} className="mt-1 w-full border-gray-300 rounded-lg p-2" required />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label htmlFor="pet-species" className="text-sm font-medium text-gray-700">Species</label>
-                        <select id="pet-species" name="species" value={formData.species} onChange={handleChange} className="mt-1 w-full border-gray-300 rounded-lg p-2" required>
-                            <option>Dog</option><option>Cat</option><option>Bird</option><option>Fish</option><option>Other</option>
-                        </select>
-                    </div>
-                    <div className="relative">
-                        <label htmlFor="pet-breed" className="text-sm font-medium text-gray-700">Breed</label>
-                        <input id="pet-breed" type="text" name="breed" value={formData.breed} onChange={handleChange} className="mt-1 w-full border-gray-300 rounded-lg p-2" required autoComplete="off" />
-                        {breedSuggestions.length > 0 && (
-                            <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 max-h-40 overflow-y-auto shadow-lg">
-                                {breedSuggestions.map(breed => (
-                                    <li key={breed} onClick={() => handleBreedSelect(breed)} className="px-4 py-2 cursor-pointer hover:bg-gray-100">
-                                        {breed}
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label htmlFor="pet-birthdate" className="text-sm font-medium text-gray-700">Birth Date</label>
-                        <input id="pet-birthdate" type="date" name="birth_date" value={formData.birth_date} onChange={handleChange} className="mt-1 w-full border-gray-300 rounded-lg p-2" required />
-                    </div>
-                    <div>
-                        <label htmlFor="pet-gender" className="text-sm font-medium text-gray-700">Gender</label>
-                        <select id="pet-gender" name="gender" value={formData.gender} onChange={handleChange} className="mt-1 w-full border-gray-300 rounded-lg p-2" required>
-                            <option>Male</option><option>Female</option><option>Unknown</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div>
-                    <label htmlFor="pet-notes" className="text-sm font-medium text-gray-700">Notes (Optional)</label>
-                    <textarea id="pet-notes" name="notes" value={formData.notes} onChange={handleChange} rows={2} className="mt-1 w-full border-gray-300 rounded-lg p-2" placeholder="e.g., Allergies, favorite toy..."></textarea>
-                </div>
-
-                <div className="flex gap-2 justify-end pt-2">
-                    <button type="button" onClick={onCancel} className="bg-gray-200 text-gray-800 font-semibold px-4 py-2 rounded-lg hover:bg-gray-300">Cancel</button>
-                    <button type="submit" className="bg-[#28CBC9] text-white font-bold px-6 py-2 rounded-lg hover:bg-teal-600">Save Pet</button>
-                </div>
-            </form>
-        )
-    }
-
-    return (
-        <div className="p-6">
-            <ScreenHeader title="My Profile"><button onClick={handleSaveProfile} className="bg-[#FF6464] text-white font-bold py-2 px-5 rounded-full hover:bg-red-500">Save</button></ScreenHeader>
-            <div className="space-y-6">
-                <div className="space-y-3">
-                    <div><label className="text-sm font-medium">Full Name</label><input type="text" name="name" value={profileData.name} onChange={handleProfileChange} className="mt-1 w-full border-gray-300 rounded-lg p-3" /></div>
-                    <div><label className="text-sm font-medium">Email</label><input type="email" name="email" value={profileData.email} onChange={handleProfileChange} className="mt-1 w-full border-gray-300 rounded-lg p-3" /></div>
-                    <div><label className="text-sm font-medium">Phone</label><input type="tel" name="phone" value={profileData.phone} onChange={handleProfileChange} className="mt-1 w-full border-gray-300 rounded-lg p-3" /></div>
-                    <div><label className="text-sm font-medium">Location</label><input type="text" name="city" value={profileData.city} onChange={handleProfileChange} className="mt-1 w-full border-gray-300 rounded-lg p-3" /></div>
-                </div>
-
-                <div className="p-4 bg-white rounded-lg">
-                    <div className="flex justify-between items-center mb-3">
-                        <h3 className="font-bold text-xl">Your Pets</h3>
-                        <button onClick={() => setEditingPet('new')} className="bg-[#28CBC9] text-white font-bold py-2 px-4 rounded-full hover:bg-teal-500">+ Add Pet</button>
-                    </div>
-                    {editingPet === 'new' && <PetEditForm pet={null} onSave={handleSavePet} onCancel={() => setEditingPet(null)}/>}
-                    <div className="space-y-3 mt-4">
-                        {pets.map(pet => (
-                            editingPet && typeof editingPet !== 'string' && editingPet.id === pet.id ?
-                            <PetEditForm key={pet.id} pet={pet} onSave={handleSavePet} onCancel={() => setEditingPet(null)}/> :
-                            <div key={pet.id} className="flex items-center gap-4 p-3 bg-slate-50 rounded-lg">
-                                <img src={pet.photo_url} alt={pet.name} className="w-16 h-16 rounded-lg object-cover" />
-                                <div className="flex-grow">
-                                    <h4 className="font-bold text-lg">{pet.name}</h4><p className="text-sm text-gray-600">{pet.breed}</p>
-                                </div>
-                                <button onClick={() => setEditingPet(pet)} className="text-sm text-blue-600 hover:underline">Edit</button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                 <div className="pt-4 border-t">
-                    <button onClick={handleLogout} className="w-full bg-gray-200 text-gray-700 font-bold py-3 rounded-lg hover:bg-gray-300">Log Out</button>
-                </div>
-            </div>
-        </div>
-    )
-}
 
 export default App;

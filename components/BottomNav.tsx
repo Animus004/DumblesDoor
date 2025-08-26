@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import type { ActiveScreen } from '../types';
 
@@ -13,9 +11,10 @@ interface NavItemProps {
 
 const NavItem: React.FC<NavItemProps> = ({ screen, activeScreen, label, icon, onNavigate }) => {
   const isActive = screen === activeScreen;
-  const color = isActive ? 'text-teal-500' : 'text-gray-500';
+  const colorClass = isActive ? `text-[var(--color-accent)]` : `text-[var(--color-text-secondary)]`;
+  
   return (
-    <button onClick={() => onNavigate(screen)} className={`flex flex-col items-center justify-center flex-1 space-y-1 focus:outline-none transition-colors ${color} hover:text-teal-400`}>
+    <button onClick={() => onNavigate(screen)} className={`flex flex-col items-center justify-center flex-1 space-y-1 focus:outline-none transition-colors ${colorClass} hover:text-[var(--color-accent)]`}>
       {icon}
       <span className={`text-xs ${isActive ? 'font-bold' : 'font-medium'}`}>{label}</span>
     </button>
@@ -29,7 +28,10 @@ interface BottomNavProps {
 
 const BottomNav: React.FC<BottomNavProps> = ({ activeScreen, onNavigate }) => {
   return (
-    <footer className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.05)] z-30">
+    <footer 
+        className="fixed bottom-0 left-0 right-0 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] z-30 backdrop-blur-lg"
+        style={{ backgroundColor: 'var(--nav-bg)' }}
+    >
       <div className="flex justify-around items-center h-16 px-2">
         <NavItem
           screen="home"

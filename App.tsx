@@ -1197,8 +1197,8 @@ const AuthScreen: React.FC = () => {
     // --- ICONS ---
     const GoogleIcon = () => (<svg className="w-5 h-5" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" /><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z" /><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.222 0-9.618-3.226-11.283-7.582l-6.522 5.025C9.505 39.556 16.227 44 24 44z" /><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" /></svg>);
     const SpinnerIcon = () => (<svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>);
-    const EyeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.522 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.022 7-9.542 7-4.478 0-8.268-2.943-9.542-7z" /></svg>);
-    const EyeOffIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7 1.274-4.057 5.022-7 9.542-7 .847 0 1.668.125 2.454.354M7.5 7.5A4.5 4.5 0 0112 3a4.5 4.5 0 014.5 4.5m-9 9a4.5 4.5 0 004.5 4.5 4.5 4.5 0 004.5-4.5M3 3l18 18" /></svg>);
+    const EyeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.522 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.022 7-9.542 7-4.478 0-8.268-2.943-9.542 7z" /></svg>);
+    const EyeOffIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7 1.274 4.057 5.022 7 9.542 7 .847 0 1.668.125 2.454.354M7.5 7.5A4.5 4.5 0 0112 3a4.5 4.5 0 014.5 4.5m-9 9a4.5 4.5 0 004.5 4.5 4.5 4.5 0 004.5-4.5M3 3l18 18" /></svg>);
     const CheckCircleIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>;
     const ExclamationCircleIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>;
 
@@ -1360,6 +1360,16 @@ const App: React.FC = () => {
     const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
     const [selectedListingForApplication, setSelectedListingForApplication] = useState<AdoptionListing | null>(null);
 
+    // --- THEME SWITCHER EFFECT ---
+    useEffect(() => {
+        const hour = new Date().getHours();
+        // Dark theme from 7 PM to 6 AM
+        if (hour >= 19 || hour < 6) {
+            document.body.classList.add('dark-theme');
+        } else {
+            document.body.classList.remove('dark-theme');
+        }
+    }, []);
 
     // --- DATA FETCHING & AUTH EFFECT ---
     const checkAndSetOnboardingStage = async (currentUser: User) => {
@@ -1548,10 +1558,12 @@ const App: React.FC = () => {
         return <AppErrorScreen message={appError} onRetry={() => { setAppError(''); if (user) checkAndSetOnboardingStage(user); }} />;
     }
     
-    if (loading) {
+    if (loading && onboardingStage === 'done' && activeScreen !== 'home') {
+        // Show loading screen for other screens, but let HomeScreen handle its own skeleton
+    } else if (loading && activeScreen !== 'home') {
         return <LoadingScreen />;
     }
-
+    
     if (!session || !user) {
         return <AuthScreen />;
     }
@@ -1578,7 +1590,7 @@ const App: React.FC = () => {
     const renderScreen = () => {
         switch(activeScreen) {
             case 'home':
-                return <HomeScreen onNavigate={handleNavigation} pet={activePet} profile={profile} />;
+                return <HomeScreen onNavigate={handleNavigation} pet={activePet} profile={profile} isLoading={loading} />;
             case 'book':
                 return <PetBookScreen onBack={() => setActiveScreen('home')} pet={activePet} />;
             case 'connect':
@@ -1606,7 +1618,7 @@ const App: React.FC = () => {
             case 'safetyCenter':
                 return <SafetyCenterScreen onBack={() => setActiveScreen('profile')} />;
             default:
-                return <HomeScreen onNavigate={handleNavigation} pet={activePet} profile={profile} />;
+                return <HomeScreen onNavigate={handleNavigation} pet={activePet} profile={profile} isLoading={loading} />;
         }
     };
 

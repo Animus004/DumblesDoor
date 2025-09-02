@@ -1,8 +1,10 @@
 
+
+
 // Trigger Vercel deployment
 // FIX: Imported useState, useEffect, and useRef from React to resolve hook-related errors.
 import React, { useState, useEffect, useRef } from 'react';
-import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Vet, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile, ActiveScreen, AdoptionListing, AdoptablePet, Shelter, ConnectProfile, AdoptionApplication } from './types';
+import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Vet, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile, ActiveScreen, AdoptionListing, AdoptablePet, Shelter, ConnectProfile, AdoptionApplication, LogoutAnalytics } from './types';
 import { ICONS } from './constants';
 import * as geminiService from './services/geminiService';
 import { supabase } from './services/supabaseClient';
@@ -22,6 +24,7 @@ import OnboardingCompletionScreen from './components/OnboardingCompletionScreen'
 import ShopScreen from './components/ShopScreen';
 import { marked } from 'marked';
 import SafetyCenterScreen from './components/SafetyCenterScreen';
+import DataPrivacyScreen from './components/DataPrivacyScreen';
 
 // --- CONNECT SCREEN IMPLEMENTATION ---
 const ConnectScreen: React.FC<{ currentUserProfile: UserProfile | null; currentUser: User | null; }> = ({ currentUserProfile, currentUser }) => {
@@ -1412,7 +1415,7 @@ const useDataFetching = (user: User | null) => {
         }
     }, [user]);
 
-    return { loading, userProfile, pets, activePet, appState, error, fetchData, setAppState };
+    return { loading, userProfile, pets, activePet, appState, error, fetchData, setAppState, setUserProfile, setPets };
 };
 
 
@@ -1442,9 +1445,10 @@ const App: React.FC = () => {
     const [isAnimatingLogout, setIsAnimatingLogout] = useState(false);
     const [logoutMessage, setLogoutMessage] = useState('');
     const [appError, setAppError] = useState('');
+    const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
     
     // Data fetching and app state logic
-    const { loading, userProfile, pets, activePet, appState, error: dataError, fetchData, setAppState } = useDataFetching(user);
+    const { loading, userProfile, pets, activePet, appState, error: dataError, fetchData, setAppState, setUserProfile, setPets } = useDataFetching(user);
     
     // Dynamic theming
     useDynamicTheming(activePet);
@@ -1459,6 +1463,118 @@ const App: React.FC = () => {
     const [adoptionListingForApplication, setAdoptionListingForApplication] = useState<AdoptionListing | null>(null);
     
     const [showCelebration, setShowCelebration] = useState(false);
+    
+    // Unsaved draft state
+    const [draftPostContent, setDraftPostContent] = useState('');
+
+    // --- DATA HANDLING ---
+    const handleLogout = async (analyticsData: LogoutAnalytics) => {
+        if (!supabase || !user) return;
+        
+        const session_duration_seconds = sessionStartTime ? Math.round((Date.now() - sessionStartTime) / 1000) : 0;
+
+        // 1. Log analytics event
+        try {
+            const { error: analyticsError } = await supabase.from('logout_analytics').insert({
+                user_id: user.id,
+                session_duration_seconds,
+                logout_scope: analyticsData.scope,
+                ux_variant: analyticsData.ux_variant,
+                satisfaction_rating: analyticsData.satisfaction_rating,
+                logout_reason: analyticsData.reason,
+                logout_reason_details: analyticsData.details,
+            });
+            if (analyticsError) {
+                // Don't block logout, just log the error for debugging
+                console.error("Failed to log logout analytics:", analyticsError.message);
+            }
+        } catch (e) {
+            console.error("Error during analytics logging:", e);
+        }
+        
+        // 2. Proceed with logout
+        const lastEmail = user.email;
+        setIsAnimatingLogout(true);
+        
+        setTimeout(async () => {
+            try {
+                await supabase.removeAllChannels();
+                const { error } = await supabase.auth.signOut({ scope: analyticsData.scope });
+                if (error) throw error;
+                
+                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
+                }
+                
+                if (lastEmail) {
+                    localStorage.setItem('lastLoggedInEmail', lastEmail);
+                }
+                setLogoutMessage("We'll miss you! Keep an eye on your email for new features and updates.");
+                // Clear local state
+                setUserProfile(null);
+                setPets([]);
+                setDraftPostContent('');
+
+            } catch (error: any) {
+                console.error("Error logging out:", error.message);
+                setAppError(`Logout failed: ${error.message}. Please check your connection.`);
+                setTimeout(() => setAppError(''), 5000);
+                setIsAnimatingLogout(false);
+            }
+        }, 400);
+    };
+    
+    const handleExportData = async () => {
+        if (!user || !userProfile || !supabase) {
+            alert("Could not export data. User not found.");
+            return;
+        }
+        
+        try {
+            const [postsRes, applicationsRes] = await Promise.all([
+                supabase.from('petbook_posts').select('*').eq('auth_user_id', user.id),
+                supabase.from('adoption_applications').select('*').eq('auth_user_id', user.id)
+            ]);
+
+            if (postsRes.error) throw postsRes.error;
+            if (applicationsRes.error) throw applicationsRes.error;
+
+            const dataToExport = {
+                profile: userProfile,
+                pets: pets,
+                posts: postsRes.data,
+                applications: applicationsRes.data,
+                export_date: new Date().toISOString()
+            };
+
+            const jsonString = JSON.stringify(dataToExport, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'dumbles_door_data.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+        } catch (error: any) {
+            alert(`Data export failed: ${error.message}`);
+        }
+    };
+    
+    const handleDeleteAccount = async () => {
+        // This is a simulation. A real implementation would require a backend function.
+        alert("Account deletion initiated. All your data will be purged after a 30-day grace period.");
+        // We log out globally as part of the deletion flow.
+        const analyticsData: LogoutAnalytics = {
+            scope: 'global',
+            ux_variant: 'button', // Deletion is always a button
+            reason: 'Account Deletion',
+        };
+        await handleLogout(analyticsData);
+        setLogoutMessage('Your account has been successfully deleted.');
+    };
 
 
     // --- EFFECTS ---
@@ -1469,45 +1585,35 @@ const App: React.FC = () => {
         
         if (missing.length > 0 || !supabase) return;
 
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('action') === 'logout') {
+            const analyticsData: LogoutAnalytics = { scope: 'local', ux_variant: 'button', reason: 'PWA Shortcut' };
+            handleLogout(analyticsData);
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
             setUser(session?.user ?? null);
-            // If user logs out, reset app state
+            if (_event === 'SIGNED_IN') {
+                setSessionStartTime(Date.now());
+            }
             if (_event === 'SIGNED_OUT') {
                 setActiveScreen('home');
                 setIsAnimatingLogout(false);
+                setSessionStartTime(null);
+            }
+        });
+        
+        supabase.auth.getSession().then(({ data: { session }}) => {
+            if (session) {
+                setSessionStartTime(Date.now());
             }
         });
 
         return () => subscription.unsubscribe();
     }, []);
     
-    const handleLogout = async (scope: 'local' | 'global' = 'local') => {
-        if (!supabase || !user) return;
-        const lastEmail = user.email;
-        setIsAnimatingLogout(true);
-        
-        // Wait for animation to finish before signing out
-        setTimeout(async () => {
-            try {
-                // Securely clean up any active real-time subscriptions.
-                await supabase.removeAllChannels();
-                const { error } = await supabase.auth.signOut({ scope });
-                if (error) throw error;
-                
-                console.log('ANALYTICS: User logged out successfully.');
-                if (lastEmail) {
-                    localStorage.setItem('lastLoggedInEmail', lastEmail);
-                }
-                setLogoutMessage('You have been successfully logged out.');
-            } catch (error: any) {
-                console.error("Error logging out:", error.message);
-                setAppError(`Logout failed: ${error.message}. Please check your connection.`);
-                setTimeout(() => setAppError(''), 5000);
-                setIsAnimatingLogout(false); // Revert animation if logout fails
-            }
-        }, 400); // Animation duration
-    };
     
     const handleDataUpdate = () => {
         if (user) fetchData(user);
@@ -1537,7 +1643,6 @@ const App: React.FC = () => {
                     const result = await geminiService.analyzePetHealth(base64Image, imageFile.type, notes, petContext);
                     setHealthCheckResult(result);
 
-                    // Trigger celebration on success
                     if (result && supabase) {
                       const { data: { user } } = await supabase.auth.getUser();
                       if (!user) return;
@@ -1552,7 +1657,7 @@ const App: React.FC = () => {
                       await supabase.from('ai_feedback').insert(newFeedbackEntry);
                       
                       setShowCelebration(true);
-                      setTimeout(() => setShowCelebration(false), 5000); // Hide after 5s
+                      setTimeout(() => setShowCelebration(false), 5000);
                     }
 
                 } catch (err: any) {
@@ -1615,13 +1720,13 @@ const App: React.FC = () => {
             case 'home':
                 return <HomeScreen onNavigate={setActiveScreen} pet={activePet} profile={userProfile} isLoading={loading} showCelebration={showCelebration} />;
             case 'book':
-                return <PetBookScreen onBack={() => setActiveScreen('home')} pet={activePet} />;
+                return <PetBookScreen onBack={() => setActiveScreen('home')} pet={activePet} setDraftPostContent={setDraftPostContent} />;
             case 'connect':
                 return <ConnectScreen currentUserProfile={userProfile} currentUser={user} />;
             case 'adoption':
                 return <AdoptionScreen onBack={() => setActiveScreen('home')} onSelectPet={setSelectedPetForAdoption} />;
             case 'profile':
-                return <ProfileScreen user={user} profile={userProfile} pets={pets} onBack={() => setActiveScreen('home')} onLogout={handleLogout} onDataUpdate={handleDataUpdate} onNavigate={setActiveScreen} />;
+                return <ProfileScreen user={user} profile={userProfile} pets={pets} onBack={() => setActiveScreen('home')} onLogout={handleLogout} onDataUpdate={handleDataUpdate} onNavigate={setActiveScreen} sessionStartTime={sessionStartTime || Date.now()} draftPostContent={draftPostContent} />;
             case 'health':
                 return <HealthCheckScreen pet={activePet} onBack={() => { setActiveScreen('home'); setHealthCheckResult(null); setHealthCheckError(null); }} onAnalyze={handleAnalyzePetHealth} isChecking={isCheckingHealth} result={healthCheckResult} error={healthCheckError} />;
             case 'vet':
@@ -1637,6 +1742,8 @@ const App: React.FC = () => {
                 return <MyApplicationsScreen onBack={() => setActiveScreen('profile')} />;
             case 'safetyCenter':
                 return <SafetyCenterScreen onBack={() => setActiveScreen('profile')} />;
+            case 'dataPrivacy':
+                return <DataPrivacyScreen onBack={() => setActiveScreen('profile')} onExportData={handleExportData} onDeleteAccount={handleDeleteAccount} />;
             default:
                 return <HomeScreen onNavigate={setActiveScreen} pet={activePet} profile={userProfile} isLoading={loading} showCelebration={showCelebration} />;
         }

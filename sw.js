@@ -88,3 +88,17 @@ self.addEventListener('fetch', event => {
     })
   );
 });
+
+// Listen for messages from the client (main app)
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'CLEAR_CACHE') {
+    console.log('Service worker received CLEAR_CACHE message.');
+    event.waitUntil(
+      caches.delete(CACHE_NAME).then(() => {
+        console.log(`Cache '${CACHE_NAME}' deleted successfully.`);
+      }).catch(error => {
+        console.error('Failed to delete cache:', error);
+      })
+    );
+  }
+});

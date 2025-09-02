@@ -315,6 +315,43 @@
       .auth-screen-enter-active {
         animation: auth-fade-in 0.6s ease-out forwards;
       }
+
+      /* --- BOTTOM SHEET MODAL --- */
+      @keyframes slide-in-up {
+        from { transform: translateY(100%); }
+        to { transform: translateY(0); }
+      }
+      @keyframes slide-out-down {
+        from { transform: translateY(0); }
+        to { transform: translateY(100%); }
+      }
+      .bottom-sheet-content {
+        animation: slide-in-up 0.3s ease-out forwards;
+      }
+      .bottom-sheet-content.exiting {
+        animation: slide-out-down 0.3s ease-in forwards;
+      }
+
+      /* --- SWIPE TO CONFIRM --- */
+      .swipe-track {
+        -webkit-user-select: none; /* Safari */
+        -ms-user-select: none; /* IE 10+ */
+        user-select: none; /* Standard */
+        touch-action: pan-y; /* Allow vertical scroll */
+      }
+      .swipe-thumb {
+        cursor: grab;
+      }
+      .swipe-thumb:active {
+        cursor: grabbing;
+      }
+      .swipe-label-text {
+        animation: pulse-text 2s infinite ease-in-out;
+      }
+      @keyframes pulse-text {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
     </style>
   <script type="importmap">
 {

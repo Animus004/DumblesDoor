@@ -189,7 +189,7 @@ export interface ConnectProfile extends UserProfile {
 
 
 export type ActiveModal = 'chat' | null;
-export type ActiveScreen = 'home' | 'book' | 'connect' | 'vet' | 'profile' | 'health' | 'adoption' | 'admin' | 'essentials' | 'petDetail' | 'adoptionApplication' | 'myApplications' | 'safetyCenter';
+export type ActiveScreen = 'home' | 'book' | 'connect' | 'vet' | 'profile' | 'health' | 'adoption' | 'admin' | 'essentials' | 'petDetail' | 'adoptionApplication' | 'myApplications' | 'safetyCenter' | 'dataPrivacy';
 
 // This type matches the Gemini SDK's expectation for chat history
 export interface GeminiChatMessage {
@@ -228,4 +228,14 @@ export interface EncyclopediaTopic {
     trainability: 'easy' | 'moderate' | 'hard';
     goodWith: string[]; // e.g., ["Children", "Other Dogs", "Cats"]
     countryOfOrigin: string;
+}
+
+// --- ANALYTICS ---
+
+export interface LogoutAnalytics {
+    scope: 'local' | 'global';
+    ux_variant: 'swipe' | 'button'; // For A/B testing
+    satisfaction_rating?: number;
+    reason?: string;
+    details?: string;
 }

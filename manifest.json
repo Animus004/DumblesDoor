@@ -19,5 +19,14 @@
   "start_url": ".",
   "display": "standalone",
   "theme_color": "#28CBC9",
-  "background_color": "#ffffff"
+  "background_color": "#ffffff",
+  "shortcuts": [
+    {
+      "name": "Sign Out",
+      "short_name": "Sign Out",
+      "description": "Sign out of your account",
+      "url": "/?action=logout",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
 }

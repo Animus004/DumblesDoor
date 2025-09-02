@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 import type { Pet, EnrichedPetbookPost } from '../types';
@@ -173,7 +174,7 @@ const PostCard: React.FC<{ post: EnrichedPetbookPost; pet: Pet | null }> = ({ po
 
 // --- MAIN COMPONENT ---
 
-const PetBookScreen: React.FC<{ onBack: () => void; pet: Pet | null; }> = ({ onBack, pet }) => {
+const PetBookScreen: React.FC<{ onBack: () => void; pet: Pet | null; setDraftPostContent: (content: string) => void; }> = ({ onBack, pet, setDraftPostContent }) => {
     const [feedPosts, setFeedPosts] = useState<EnrichedPetbookPost[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -200,6 +201,15 @@ const PetBookScreen: React.FC<{ onBack: () => void; pet: Pet | null; }> = ({ onB
         { id: 5, name: 'Misty', imgUrl: 'https://i.ibb.co/Dtd5zWf/indian-cat-1.jpg' },
         { id: 6, name: 'Max', imgUrl: 'https://i.ibb.co/QcYH2S3/chew-toy-dog.jpg' },
     ];
+
+    useEffect(() => {
+        setDraftPostContent(newPostContent);
+        return () => {
+            // Clear draft in parent when component unmounts if it's not submitted
+            // Note: This cleanup might be too aggressive if user navigates away and expects draft to be saved.
+            // For now, we only clear it on unmount.
+        };
+    }, [newPostContent, setDraftPostContent]);
 
 
     const fetchFeed = async () => {
@@ -286,6 +296,7 @@ const PetBookScreen: React.FC<{ onBack: () => void; pet: Pet | null; }> = ({ onB
             if (insertError) throw insertError;
 
             setNewPostContent('');
+            setDraftPostContent(''); // Clear parent state on successful post
             setNewPostImage(null);
             setImagePreview(null);
             setSuggestedHashtags([]);

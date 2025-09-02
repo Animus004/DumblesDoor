@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
 import type { User } from '@supabase/supabase-js';
-import type { Pet, UserProfile, ActiveScreen } from '../types';
+import type { Pet, UserProfile, ActiveScreen, LogoutAnalytics } from '../types';
 import PetForm from './PetForm';
 
 // --- HELPER COMPONENTS ---
@@ -25,7 +26,7 @@ const formatDate = (dateString?: string) => {
 };
 
 
-// --- MODAL COMPONENTS ---
+// --- MODAL & LOGOUT COMPONENTS ---
 
 const ProfileEditModal: React.FC<{ profile: UserProfile; onSave: (name: string, phone: string, city: string) => Promise<void>; onCancel: () => void; isLoading: boolean; }> = ({ profile, onSave, onCancel, isLoading }) => {
     const [name, setName] = useState(profile.name || '');
@@ -63,6 +64,195 @@ const ProfileEditModal: React.FC<{ profile: UserProfile; onSave: (name: string, 
     );
 };
 
+// --- A/B Tested Logout Confirmation Components ---
+const SwipeToConfirm: React.FC<{ onConfirm: () => void; isLoggingOut: boolean }> = ({ onConfirm, isLoggingOut }) => {
+    const [thumbPosition, setThumbPosition] = useState(0);
+    const [isDragging, setIsDragging] = useState(false);
+    const trackRef = useRef<HTMLDivElement>(null);
+
+    const handleMove = (clientX: number) => {
+        if (isLoggingOut || !isDragging || !trackRef.current) return;
+        const trackRect = trackRef.current.getBoundingClientRect();
+        const maxPos = trackRect.width - trackRect.height; // height is used for thumb width
+        const newPos = Math.min(maxPos, Math.max(0, clientX - trackRect.left - trackRect.height / 2));
+        setThumbPosition(newPos);
+    };
+
+    const handleEnd = () => {
+        if (isLoggingOut || !trackRef.current) return;
+        const trackRect = trackRef.current.getBoundingClientRect();
+        const maxPos = trackRect.width - trackRect.height;
+        if (thumbPosition > maxPos * 0.8) {
+            setThumbPosition(maxPos);
+            onConfirm();
+        } else {
+            setThumbPosition(0);
+        }
+        setIsDragging(false);
+    };
+
+    const handleTouchStart = (e: React.TouchEvent) => { if (!isLoggingOut) setIsDragging(true); };
+    const handleTouchMove = (e: React.TouchEvent) => handleMove(e.touches[0].clientX);
+    const handleMouseDown = (e: React.MouseEvent) => { if (!isLoggingOut) { setIsDragging(true); e.preventDefault(); }};
+    const handleMouseMove = (e: MouseEvent) => handleMove(e.clientX);
+    const handleMouseUp = () => handleEnd();
+
+    useEffect(() => {
+        if (isDragging) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDragging]);
+
+    return (
+        <div ref={trackRef} className={`relative w-full h-14 rounded-full flex items-center p-1.5 swipe-track overflow-hidden ${isLoggingOut ? 'bg-gray-200' : 'bg-red-100'}`}>
+            <span className={`absolute left-1/2 -translate-x-1/2 font-semibold ${isLoggingOut ? 'text-gray-500' : 'text-red-500 swipe-label-text'}`}>
+                {isLoggingOut ? 'Processing...' : 'Swipe to Log Out'}
+            </span>
+            <div
+                className={`relative h-full aspect-square text-white rounded-full flex items-center justify-center shadow-md ${isLoggingOut ? 'bg-gray-400' : 'bg-red-500 swipe-thumb'}`}
+                style={{ transform: `translateX(${thumbPosition}px)`, transition: isDragging ? 'none' : 'transform 0.2s ease' }}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleEnd}
+                onMouseDown={handleMouseDown}
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H3" /></svg>
+            </div>
+        </div>
+    );
+};
+
+const ButtonToConfirm: React.FC<{ onConfirm: () => void, isLoggingOut: boolean }> = ({ onConfirm, isLoggingOut }) => (
+    <button 
+        onClick={onConfirm}
+        disabled={isLoggingOut}
+        className="w-full bg-red-600 text-white font-bold py-3 rounded-lg hover:bg-red-700 disabled:opacity-50"
+    >
+        {isLoggingOut ? 'Logging Out...' : 'Confirm Log Out'}
+    </button>
+);
+
+const StarRating: React.FC<{ rating: number; onRate: (rating: number) => void }> = ({ rating, onRate }) => (
+    <div className="flex justify-center items-center gap-2">
+        {[1, 2, 3, 4, 5].map(star => (
+            <button key={star} onClick={() => onRate(star)} className="text-4xl transition-transform transform hover:scale-110 focus:outline-none" aria-label={`Rate ${star} out of 5 stars`}>
+                <span className={star <= rating ? 'text-yellow-400' : 'text-gray-300'}>★</span>
+            </button>
+        ))}
+    </div>
+);
+
+// --- Enhanced Logout Bottom Sheet ---
+interface LogoutFeedback {
+    satisfaction_rating?: number;
+    reason?: string;
+    details?: string;
+}
+
+const LogoutBottomSheet: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onLogout: (analyticsData: LogoutAnalytics) => void;
+    user: User;
+}> = ({ isOpen, onClose, onLogout, user }) => {
+    const [isExiting, setIsExiting] = useState(false);
+    const [signOutEverywhere, setSignOutEverywhere] = useState(false);
+    const [step, setStep] = useState(1);
+    const [feedback, setFeedback] = useState<LogoutFeedback>({});
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+    const uxVariant = useMemo(() => 
+        (parseInt(user.id.slice(-1), 16) % 2 === 0) ? 'swipe' : 'button' as 'swipe' | 'button',
+        [user.id]
+    );
+
+    const logoutReasons = ["Taking a break", "App is not useful", "Technical issues", "Privacy concerns", "Other"];
+
+    const handleClose = () => {
+        setIsExiting(true);
+        setTimeout(() => {
+            onClose();
+            setIsExiting(false);
+            setStep(1);
+            setFeedback({});
+        }, 300);
+    };
+
+    const handleConfirmLogout = () => {
+        setIsLoggingOut(true);
+        onLogout({
+            ...feedback,
+            scope: signOutEverywhere ? 'global' : 'local',
+            ux_variant: uxVariant,
+        });
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center" onClick={handleClose}>
+            <div
+                className={`w-full bg-white rounded-t-2xl p-4 pt-2 ${isExiting ? 'exiting' : ''} bottom-sheet-content`}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="w-10 h-1.5 bg-gray-300 rounded-full mx-auto my-2"></div>
+                {step === 1 && (
+                    <>
+                        <h2 className="text-xl font-bold text-center text-gray-800 my-4">We're sad to see you go</h2>
+                        <p className="text-center text-sm text-gray-500 -mt-2 mb-4">Your feedback is optional but helps us improve.</p>
+                        
+                        <div className="space-y-4 my-6">
+                            <p className="font-semibold text-center text-sm text-gray-600">How was your experience today?</p>
+                            <StarRating rating={feedback.satisfaction_rating || 0} onRate={(r) => setFeedback(f => ({...f, satisfaction_rating: r}))} />
+                        </div>
+
+                         <div className="space-y-2">
+                             <p className="font-semibold text-sm text-gray-600">What's the main reason for leaving?</p>
+                             <div className="flex flex-wrap gap-2">
+                                {logoutReasons.map(reason => (
+                                    <button key={reason} onClick={() => setFeedback(f => ({...f, reason, details: reason !== 'Other' ? '' : f.details}))} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${feedback.reason === reason ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                                        {reason}
+                                    </button>
+                                ))}
+                             </div>
+                             {feedback.reason === 'Other' && (
+                                <textarea value={feedback.details || ''} onChange={e => setFeedback(f => ({...f, details: e.target.value}))} placeholder="Please tell us more..." rows={2} className="w-full mt-2 p-2 border rounded-md"></textarea>
+                             )}
+                         </div>
+
+                        <button onClick={() => setStep(2)} className="mt-6 w-full bg-teal-500 text-white font-bold py-3 rounded-lg">Continue to Log Out</button>
+                    </>
+                )}
+
+                {step === 2 && (
+                    <>
+                        <h2 className="text-xl font-bold text-center text-gray-800 my-4">Final Confirmation</h2>
+                        <div className="flex items-center justify-between p-3 bg-gray-100 rounded-lg my-6">
+                            <label htmlFor="signOutEverywhere" className="text-sm font-medium text-gray-700">Sign out of all devices</label>
+                            <button onClick={() => setSignOutEverywhere(!signOutEverywhere)} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${signOutEverywhere ? 'bg-teal-500' : 'bg-gray-300'}`}>
+                                <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${signOutEverywhere ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </button>
+                        </div>
+                        
+                        {uxVariant === 'swipe' ? (
+                            <SwipeToConfirm onConfirm={handleConfirmLogout} isLoggingOut={isLoggingOut} />
+                        ) : (
+                            <ButtonToConfirm onConfirm={handleConfirmLogout} isLoggingOut={isLoggingOut} />
+                        )}
+
+                        <button onClick={() => setStep(1)} className="w-full text-center text-sm font-semibold text-gray-500 mt-4">Back to feedback</button>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+};
+
 
 // --- MAIN PROFILE SCREEN COMPONENT ---
 
@@ -71,25 +261,25 @@ interface ProfileScreenProps {
   profile: UserProfile | null;
   pets: Pet[];
   onBack: () => void;
-  onLogout: (scope?: 'local' | 'global') => void;
+  onLogout: (analyticsData: LogoutAnalytics) => void;
   onDataUpdate: () => void;
   onNavigate: (screen: ActiveScreen) => void;
+  sessionStartTime: number;
+  draftPostContent: string;
 }
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, profile, pets, onBack, onLogout, onDataUpdate, onNavigate }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, profile, pets, onBack, onLogout, onDataUpdate, onNavigate, sessionStartTime, draftPostContent }) => {
     // Modal states
     const [showProfileEdit, setShowProfileEdit] = useState(false);
     const [showEmergencyContact, setShowEmergencyContact] = useState(false);
-    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showLogoutSheet, setShowLogoutSheet] = useState(false);
     const [petFormMode, setPetFormMode] = useState<'add' | 'edit' | null>(null);
     const [petToEdit, setPetToEdit] = useState<Pet | null>(null);
+    const [showShortSessionModal, setShowShortSessionModal] = useState(false);
 
     // Form/action states
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-    const [signOutEverywhere, setSignOutEverywhere] = useState(false);
-    const [deleteConfirmText, setDeleteConfirmText] = useState('');
     const [emergencyContact, setEmergencyContact] = useState(profile?.emergency_contact || { name: '', phone: '' });
 
     useEffect(() => {
@@ -98,6 +288,20 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, profile, pets, onBa
         }
     }, [profile]);
 
+    const handleLogoutClick = () => {
+        if (draftPostContent) {
+            const discard = window.confirm("You have an unsaved draft post. Are you sure you want to log out? Your draft will be lost.");
+            if (!discard) return;
+        }
+
+        const sessionDurationMs = Date.now() - sessionStartTime;
+        if (sessionDurationMs < 30000) { // less than 30 seconds
+            setShowShortSessionModal(true);
+        } else {
+            setShowLogoutSheet(true);
+        }
+    };
+    
     const handleProfileSave = async (name: string, phone: string, city: string) => {
         if (!user) return;
         setIsLoading(true);
@@ -131,23 +335,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, profile, pets, onBa
         setPetToEdit(null);
         onDataUpdate();
     };
-
-    const handleLogoutClick = () => {
-        const scope = signOutEverywhere ? 'global' : 'local';
-        onLogout(scope);
-        setShowLogoutConfirm(false);
-    };
     
-    const handleDeleteAccount = () => {
-        // In a real app, this would trigger a Supabase Edge Function to delete all user data.
-        // For now, we'll just log them out and show a confirmation.
-        alert("Your account has been deleted. We're sorry to see you go!");
-        onLogout('global');
-        setShowDeleteConfirm(false);
-    };
-
-    const isDeleteButtonDisabled = deleteConfirmText.toLowerCase() !== 'delete';
-
     return (
         <div className="min-h-screen bg-gray-50">
              <header className="p-4 flex items-center border-b bg-white sticky top-0 z-10">
@@ -210,21 +398,18 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, profile, pets, onBa
 
                          <SettingsRow icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" /></svg>}
                             title="Help & Support" subtitle="Find answers and get help" onClick={() => alert('Our comprehensive Help Center is coming soon!')} />
+                        
+                        <SettingsRow icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2V7a5 5 0 00-5-5zm0 2a3 3 0 013 3v2H7V7a3 3 0 013-3z" /></svg>}
+                            title="Data & Privacy" subtitle="Export data or delete account" onClick={() => onNavigate('dataPrivacy')} />
 
                          {profile?.role === 'admin' && (
                              <SettingsRow icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg>}
                                 title="Admin Dashboard" subtitle="Manage app content" onClick={() => onNavigate('admin')} />
                          )}
                     </div>
-                </section>
-                
-                {/* Danger Zone */}
-                <section className="bg-red-50 p-4 rounded-lg border border-red-200">
-                    <h3 className="text-lg font-bold text-red-800 mb-3">Danger Zone</h3>
-                    <div className="space-y-3">
-                         <button onClick={() => setShowLogoutConfirm(true)} className="w-full text-left font-semibold text-gray-700 hover:bg-gray-100 p-2 rounded-lg">Log Out</button>
-                         <button onClick={() => setShowDeleteConfirm(true)} className="w-full text-left font-semibold text-red-600 hover:bg-red-100 p-2 rounded-lg">Delete Account</button>
-                    </div>
+                     <button onClick={handleLogoutClick} className="w-full text-left font-semibold text-gray-700 hover:bg-gray-100 p-3 rounded-lg mt-4">
+                        Log Out
+                    </button>
                 </section>
             </main>
 
@@ -233,35 +418,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, profile, pets, onBa
 
             {showProfileEdit && profile && <ProfileEditModal profile={profile} onSave={handleProfileSave} onCancel={() => setShowProfileEdit(false)} isLoading={isLoading} />}
             
-            {showLogoutConfirm && (
-                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowLogoutConfirm(false)} role="dialog" aria-modal="true">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center" onClick={(e) => e.stopPropagation()}>
-                        <h2 className="text-xl font-bold text-gray-800">Log Out?</h2>
-                        <p className="text-gray-500 mt-2">Are you sure you want to log out?</p>
-                        <div className="flex items-center space-x-2 mt-4 text-left p-2">
-                            <input type="checkbox" id="signOutEverywhere" checked={signOutEverywhere} onChange={(e) => setSignOutEverywhere(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-teal-600" />
-                            <label htmlFor="signOutEverywhere" className="text-sm text-gray-700">Sign out of all other devices</label>
-                        </div>
-                        <div className="flex gap-4 mt-6">
-                            <button onClick={() => setShowLogoutConfirm(false)} className="w-full bg-gray-200 font-bold py-2.5 rounded-lg">Cancel</button>
-                            <button onClick={handleLogoutClick} className="w-full bg-red-500 text-white font-bold py-2.5 rounded-lg">Log Out</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {user && <LogoutBottomSheet 
+                isOpen={showLogoutSheet}
+                onClose={() => setShowLogoutSheet(false)}
+                onLogout={onLogout}
+                user={user}
+            />}
             
-            {showDeleteConfirm && (
-                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowDeleteConfirm(false)} role="dialog" aria-modal="true">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-                        <h2 className="text-xl font-bold text-center text-red-700">Delete Account</h2>
-                        <p className="text-gray-600 mt-2 text-sm text-center">This action is permanent and cannot be undone. All your profile data, pets, and posts will be lost.</p>
-                        <div className="mt-4">
-                            <label className="text-sm font-medium text-gray-700">To confirm, type "delete" below:</label>
-                            <input type="text" value={deleteConfirmText} onChange={e => setDeleteConfirmText(e.target.value)} className="w-full mt-1 p-2 border rounded-md border-red-300 focus:ring-red-500" />
-                        </div>
+            {showShortSessionModal && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-sm text-center">
+                        <h3 className="text-lg font-bold">Just checking in!</h3>
+                        <p className="text-sm text-gray-600 mt-2">Your session has just started. Did you find what you were looking for?</p>
                         <div className="flex gap-4 mt-6">
-                            <button onClick={() => setShowDeleteConfirm(false)} className="w-full bg-gray-200 font-bold py-2.5 rounded-lg">Cancel</button>
-                            <button onClick={handleDeleteAccount} disabled={isDeleteButtonDisabled} className="w-full bg-red-600 text-white font-bold py-2.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">Delete My Account</button>
+                            <button onClick={() => { onNavigate('home'); setShowShortSessionModal(false); }} className="w-full bg-gray-200 text-gray-700 font-bold py-2.5 rounded-lg">Explore Features</button>
+                            <button onClick={() => { setShowShortSessionModal(false); setShowLogoutSheet(true); }} className="w-full bg-red-100 text-red-700 font-bold py-2.5 rounded-lg">Log Out Anyway</button>
                         </div>
                     </div>
                 </div>
@@ -292,6 +463,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, profile, pets, onBa
             {petFormMode && user && (
                 <div className="fixed inset-0 bg-black/75 z-40 flex flex-col" role="dialog" aria-modal="true">
                     <div className="bg-white flex-grow overflow-y-auto">
+                        {/* FIX: Pass `setIsLoading` to the `PetForm` component for the `setIsSaving` prop, as `setIsSaving` was not defined in the scope of `ProfileScreen`. */}
                         <PetForm user={user} petToEdit={petToEdit} onSave={handlePetSaved} onCancel={() => setPetFormMode(null)} isSaving={isLoading} setIsSaving={setIsLoading} />
                     </div>
                 </div>

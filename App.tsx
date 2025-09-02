@@ -1,3 +1,4 @@
+
 // Trigger Vercel deployment
 // FIX: Imported useState, useEffect, and useRef from React to resolve hook-related errors.
 import React, { useState, useEffect, useRef } from 'react';
@@ -1061,13 +1062,13 @@ const SignupSuccessScreen: React.FC<{ email: string; onGoToLogin: () => void }> 
   );
 };
 
-const AuthScreen: React.FC = () => {
+const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage }) => {
     const [isLoginView, setIsLoginView] = useState(true);
-    const [email, setEmail] = useState('');
+    const [email, setEmail] = useState(() => localStorage.getItem('lastLoggedInEmail') || '');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [message, setMessage] = useState('');
+    const [message, setMessage] = useState(postLogoutMessage);
     const [signupSuccess, setSignupSuccess] = useState(false);
     const [passwordVisible, setPasswordVisible] = useState(false);
     const [emailValidation, setEmailValidation] = useState<{ isValid: boolean | null; message: string }>({ isValid: null, message: '' });
@@ -1082,6 +1083,13 @@ const AuthScreen: React.FC = () => {
     useEffect(() => {
         emailInputRef.current?.focus();
     }, []);
+
+    useEffect(() => {
+        if (message) {
+            const timer = setTimeout(() => setMessage(''), 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [message]);
 
     const validateEmail = (emailStr: string) => {
         if (!emailStr) {
@@ -1230,7 +1238,7 @@ const AuthScreen: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-teal-50 to-cyan-100 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-gradient-to-br from-teal-50 to-cyan-100 flex items-center justify-center p-4 auth-screen-enter-active">
             <div className="w-full max-w-sm">
                 <div className="text-center mb-8">
                     <h1 className="text-4xl font-bold text-gray-800">Dumble's Door</h1>
@@ -1254,7 +1262,20 @@ const AuthScreen: React.FC = () => {
 
                     <form onSubmit={handleEmailAuth} className="space-y-4">
                         {error && <p className="text-red-500 text-xs text-center bg-red-50 p-2 rounded-md">{error}</p>}
-                        {message && <p className="text-green-600 text-xs text-center bg-green-50 p-2 rounded-md">{message}</p>}
+                        {message && (
+                            <div className="text-green-600 text-sm text-center bg-green-50 p-3 rounded-md">
+                                <p>{message}</p>
+                                {message.includes('logged out') && (
+                                    <button 
+                                        type="button" 
+                                        onClick={() => alert('Feedback form coming soon!')} 
+                                        className="text-xs text-green-800 font-semibold mt-1 hover:underline"
+                                    >
+                                        Give Feedback
+                                    </button>
+                                )}
+                            </div>
+                        )}
 
                         <div>
                             <input
@@ -1418,6 +1439,9 @@ const App: React.FC = () => {
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
     const [activeScreen, setActiveScreen] = useState<ActiveScreen>('home');
+    const [isAnimatingLogout, setIsAnimatingLogout] = useState(false);
+    const [logoutMessage, setLogoutMessage] = useState('');
+    const [appError, setAppError] = useState('');
     
     // Data fetching and app state logic
     const { loading, userProfile, pets, activePet, appState, error: dataError, fetchData, setAppState } = useDataFetching(user);
@@ -1443,31 +1467,46 @@ const App: React.FC = () => {
         const missing = requiredVars.filter(v => !import.meta.env[v]);
         setMissingEnvVars(missing);
         
-        if (missing.length > 0) return;
-        
-        supabase?.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-        });
+        if (missing.length > 0 || !supabase) return;
 
-        const { data: { subscription } } = supabase!.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
             setUser(session?.user ?? null);
             // If user logs out, reset app state
             if (_event === 'SIGNED_OUT') {
                 setActiveScreen('home');
+                setIsAnimatingLogout(false);
             }
         });
 
         return () => subscription.unsubscribe();
     }, []);
     
-    const handleLogout = async () => {
-        if (!supabase) return;
-        const { error } = await supabase.auth.signOut();
-        if (error) {
-            console.error("Error logging out:", error.message);
-        }
+    const handleLogout = async (scope: 'local' | 'global' = 'local') => {
+        if (!supabase || !user) return;
+        const lastEmail = user.email;
+        setIsAnimatingLogout(true);
+        
+        // Wait for animation to finish before signing out
+        setTimeout(async () => {
+            try {
+                // Securely clean up any active real-time subscriptions.
+                await supabase.removeAllChannels();
+                const { error } = await supabase.auth.signOut({ scope });
+                if (error) throw error;
+                
+                console.log('ANALYTICS: User logged out successfully.');
+                if (lastEmail) {
+                    localStorage.setItem('lastLoggedInEmail', lastEmail);
+                }
+                setLogoutMessage('You have been successfully logged out.');
+            } catch (error: any) {
+                console.error("Error logging out:", error.message);
+                setAppError(`Logout failed: ${error.message}. Please check your connection.`);
+                setTimeout(() => setAppError(''), 5000);
+                setIsAnimatingLogout(false); // Revert animation if logout fails
+            }
+        }, 400); // Animation duration
     };
     
     const handleDataUpdate = () => {
@@ -1536,9 +1575,9 @@ const App: React.FC = () => {
     if (missingEnvVars.length > 0) {
         return <EnvironmentVariablePrompt missingKeys={missingEnvVars} />;
     }
-    
+
     if (appState === 'loading' && !user) {
-        return <AuthScreen />;
+        return <AuthScreen postLogoutMessage={logoutMessage} />;
     }
     
     if (appState === 'loading') {
@@ -1550,7 +1589,7 @@ const App: React.FC = () => {
     }
     
     if (!user) {
-        return <AuthScreen />;
+        return <AuthScreen postLogoutMessage={logoutMessage} />;
     }
 
     // Onboarding Flow
@@ -1604,7 +1643,8 @@ const App: React.FC = () => {
     };
 
     return (
-        <div className="h-screen w-screen overflow-hidden">
+        <div className={`h-screen w-screen overflow-hidden ${isAnimatingLogout ? 'app-container-exit-active' : ''}`}>
+            {appError && <div className="fixed top-5 right-5 bg-red-600 text-white py-2 px-4 rounded-lg shadow-lg z-50 animate-pulse">{appError}</div>}
             <main className="h-full">
                 {renderActiveScreen()}
             </main>

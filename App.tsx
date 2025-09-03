@@ -1,9 +1,3 @@
-
-
-
-
-
-
 // Trigger Vercel deployment
 // FIX: Imported useState, useEffect, and useRef from React to resolve hook-related errors.
 import React, { useState, useEffect, useRef } from 'react';
@@ -937,40 +931,47 @@ const AppErrorScreen: React.FC<{ message: string; onRetry: () => void; }> = ({ m
 );
 
 const getFriendlyAuthErrorMessage = (message: string): string => {
-  if (!message) return 'An unexpected error occurred. Please try again.';
+    if (!message) return 'An unexpected error occurred. Please try again.';
 
-  const lowerCaseMessage = message.toLowerCase();
+    const lowerCaseMessage = message.toLowerCase();
 
-  if (lowerCaseMessage.includes('invalid login credentials')) {
-    return 'Incorrect email or password. Please try again.';
-  }
-  if (lowerCaseMessage.includes('email not confirmed')) {
-    // This specific message is used to show the "Resend" button, so it needs to be exact.
-    return 'Email not confirmed. Check your inbox for the verification link.';
-  }
-  if (lowerCaseMessage.includes('user already registered')) {
-    return 'An account with this email already exists. Please log in instead.';
-  }
-  if (lowerCaseMessage.includes('rate limit exceeded') || lowerCaseMessage.includes('too many requests')) {
-    return 'You have made too many attempts. Please wait a moment and try again.';
-  }
-  if (lowerCaseMessage.includes('networkerror') || lowerCaseMessage.includes('failed to fetch')) {
-    return 'A network error occurred. Please check your internet connection and try again.';
-  }
-   if (lowerCaseMessage.includes('to signup, please provide a password')) {
-      return 'It looks like you signed up with a social provider. Please use the social login button to continue.';
-  }
-  if (lowerCaseMessage.includes('oauth') && (lowerCaseMessage.includes('redirect') || lowerCaseMessage.includes('origin'))) {
-      return 'There was a social login error. This is likely a configuration issue. Please ensure you are accessing the app from an authorized URL.';
-  }
-  if (lowerCaseMessage.includes('for security purposes, you need to solve a captcha')) {
-      return 'Please solve the captcha to continue. If you don\'t see one, try disabling ad-blockers.';
-  }
+    // The most common and critical developer error: OAuth redirect URI mismatch.
+    // This captures multiple variations of the error message from different providers.
+    if (lowerCaseMessage.includes('redirect uri mismatch') || lowerCaseMessage.includes('invalid redirect uri') || (lowerCaseMessage.includes('oauth') && (lowerCaseMessage.includes('origin') || lowerCaseMessage.includes('redirect')))) {
+        const origin = typeof window !== 'undefined' ? window.location.origin : 'YOUR_APP_URL';
+        return `[DEVELOPER] A crucial OAuth setting is incorrect. Your authentication provider (e.g., Google) is blocking the login request because your app's URL is not on its list of allowed redirect URIs.\n\nACTION REQUIRED: Add the following URL to your Supabase project's "Redirect URLs" list under "Authentication > URL Configuration":\n\n${origin}`;
+    }
 
-  // Log any unhandled errors to the console for debugging
-  console.warn('Unhandled Supabase auth error:', message);
+    if (lowerCaseMessage.includes('invalid login credentials')) {
+        return 'Incorrect email or password. If you signed up using a social provider like Google, please use that login method instead.';
+    }
+
+    if (lowerCaseMessage.includes('email not confirmed')) {
+        // This exact message is checked elsewhere to show a "Resend" button.
+        return 'Email not confirmed. Check your inbox for the verification link.';
+    }
+
+    if (lowerCaseMessage.includes('user already registered')) {
+        return 'An account with this email already exists. Try logging in or use the password reset option if you forgot your password.';
+    }
+
+    if (lowerCaseMessage.includes('rate limit exceeded') || lowerCaseMessage.includes('too many requests')) {
+        return 'You have made too many attempts. Please wait a moment and try again.';
+    }
   
-  return 'An unexpected authentication error occurred. Please try again.';
+    if (lowerCaseMessage.includes('networkerror') || lowerCaseMessage.includes('failed to fetch')) {
+        return 'A network error occurred. Please check your internet connection and try again.';
+    }
+    
+    // A catch-all for other, less common OAuth errors that are still likely config-related.
+    if (lowerCaseMessage.includes('oauth')) {
+        return `[DEVELOPER] An OAuth error occurred. This could be due to an incorrect Client ID/Secret in your Supabase settings, the provider application being in 'test mode', or other provider-side configuration issues. Raw message: ${message}`;
+    }
+
+    // Log any unhandled errors to the console for debugging
+    console.warn('Unhandled Supabase auth error:', message);
+
+    return 'An unexpected authentication error occurred. Please try again.';
 };
 
 
@@ -1074,15 +1075,59 @@ const SignupSuccessScreen: React.FC<{ email: string; onGoToLogin: () => void }> 
   );
 };
 
+const TroubleshootingModal: React.FC<{onClose: () => void}> = ({ onClose }) => (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg p-6 w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold">OAuth Troubleshooting Guide</h3>
+            <p className="text-sm text-gray-600 mt-2">Follow these steps to resolve common OAuth connection issues:</p>
+            <ol className="list-decimal list-inside space-y-3 mt-4 text-sm">
+                <li><strong>Check Environment Variables:</strong> Ensure `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are correct in your hosting environment.</li>
+                <li><strong>Verify Redirect URL:</strong> This is the most common error. Go to your <a href="https://app.supabase.com/" target="_blank" rel="noopener noreferrer" className="text-teal-600 underline">Supabase Dashboard</a> &gt; Authentication &gt; URL Configuration. Add the exact URL where your app is running (e.g., `http://localhost:3000`, your Vercel preview URL) to the "Redirect URLs" list. The error message on the login screen tells you the exact URL to add.</li>
+                <li><strong>Enable the Provider:</strong> In your Supabase Dashboard &gt; Authentication &gt; Providers, make sure the provider (e.g., Google) is enabled.</li>
+                <li><strong>Check Provider Credentials:</strong> Double-check that the Client ID and Client Secret from your OAuth provider (e.g., Google Cloud Console) are correctly copied into the Supabase provider settings.</li>
+            </ol>
+            <p className="text-xs text-gray-500 mt-4">If you're still having trouble, review the <a href="https://supabase.com/docs/guides/auth/social-login/overview" target="_blank" rel="noopener noreferrer" className="text-teal-600 underline">official Supabase documentation</a> or contact <a href="mailto:support@example.com" className="text-teal-600 underline">developer support</a>.</p>
+            <button onClick={onClose} className="mt-4 w-full bg-gray-200 text-gray-700 font-bold py-2 rounded-lg">Close</button>
+        </div>
+    </div>
+);
+
+const AuthErrorDisplay: React.FC<{ message: string; onShowTroubleshoot: () => void; }> = ({ message, onShowTroubleshoot }) => {
+    if (!message) return null;
+
+    const isDevError = message.includes('[DEVELOPER]');
+    const friendlyMessage = message.replace('[DEVELOPER]', '').trim();
+
+    return (
+        <div className="bg-red-50 p-3 rounded-lg text-left text-sm space-y-2">
+            <p className="font-semibold text-red-800">{isDevError ? 'Developer Configuration Notice' : 'Login Failed'}</p>
+            <p className="text-red-700 whitespace-pre-wrap">{friendlyMessage}</p>
+            {isDevError && (
+                <div className="flex gap-4 items-center pt-1">
+                    <button onClick={onShowTroubleshoot} className="text-red-900 font-semibold hover:underline text-xs">
+                        Open Troubleshooting Guide
+                    </button>
+                    <button onClick={() => navigator.clipboard.writeText(friendlyMessage)} className="text-red-900 font-semibold hover:underline text-xs">
+                        Copy Details
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage }) => {
     const [isLoginView, setIsLoginView] = useState(true);
     const [email, setEmail] = useState(() => localStorage.getItem('lastLoggedInEmail') || '');
     const [password, setPassword] = useState('');
-    const [loading, setLoading] = useState(false);
+    const [emailLoading, setEmailLoading] = useState(false);
+    const [googleLoading, setGoogleLoading] = useState(false);
     const [error, setError] = useState('');
     const [message, setMessage] = useState(postLogoutMessage);
     const [signupSuccess, setSignupSuccess] = useState(false);
     const [passwordVisible, setPasswordVisible] = useState(false);
+    const [showTroubleshooting, setShowTroubleshooting] = useState(false);
+
     const [emailValidation, setEmailValidation] = useState<{ isValid: boolean | null; message: string }>({ isValid: null, message: '' });
     const [passwordValidation, setPasswordValidation] = useState({
         length: false,
@@ -1153,7 +1198,7 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
             return;
         }
 
-        setLoading(true);
+        setEmailLoading(true);
         try {
             if (!supabase) throw new Error("Database connection failed.");
             
@@ -1174,46 +1219,59 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
             console.error("Authentication error:", err);
             setError(getFriendlyAuthErrorMessage(err.message || ''));
         } finally {
-            setLoading(false);
+            setEmailLoading(false);
         }
     };
     
     const handleSocialLogin = async (provider: Provider) => {
-        setLoading(true);
+        setGoogleLoading(true);
         setError('');
         setMessage('');
-        if (!supabase) {
-            setError("Database connection failed.");
-            setLoading(false);
-            return;
+        try {
+            if (!supabase) throw new Error("Database connection failed.");
+
+            // Supabase's signInWithOAuth uses a redirect flow, which is generally more secure
+            // and robust than a popup-based flow. It avoids issues with popup blockers and
+            // is the recommended approach for web applications. The user is redirected to the
+            // OAuth provider and then sent back to the `redirectTo` URL with session information.
+            console.log(`Initiating OAuth login with ${provider} for origin: ${window.location.origin}`);
+
+            const { error: oauthError } = await supabase.auth.signInWithOAuth({ 
+                provider,
+                options: {
+                    redirectTo: window.location.origin,
+                },
+            });
+
+            if (oauthError) {
+                // This error is often thrown if the provider is not configured correctly in Supabase.
+                console.error(`Supabase OAuth Error (${provider}):`, oauthError);
+                throw oauthError;
+            }
+            // On success, Supabase handles the redirect away from the app.
+            // The user will return to the app, and the onAuthStateChange listener will handle the new session.
+            // We don't set googleLoading to false here because the page is about to navigate away.
+        } catch (err: any) {
+             console.error("Caught error during social login setup:", err);
+             setError(getFriendlyAuthErrorMessage(err.message));
+             setGoogleLoading(false);
         }
-        const { error } = await supabase.auth.signInWithOAuth({ 
-            provider,
-            options: {
-                redirectTo: window.location.origin,
-            },
-        });
-        if (error) {
-            setError(getFriendlyAuthErrorMessage(error.message));
-            setLoading(false);
-        }
-        // On success, the page will redirect, so no need to set loading to false.
     };
 
     const handleResendVerification = async () => {
-        setLoading(true);
+        setEmailLoading(true);
         setError('');
         setMessage('');
         if (!supabase) {
             setError("Database connection failed.");
-            setLoading(false);
+            setEmailLoading(false);
             return;
         }
         const { error: resendError } = await supabase.auth.resend({
             type: 'signup',
             email: email,
         });
-        setLoading(false);
+        setEmailLoading(false);
         if (resendError) {
             setError(getFriendlyAuthErrorMessage(resendError.message));
         } else {
@@ -1240,10 +1298,10 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
                     {message && <p className="text-green-600 bg-green-50 p-2 rounded-md">{message}</p>}
                     <button
                       onClick={handleResendVerification}
-                      disabled={loading}
+                      disabled={emailLoading}
                       className="w-full bg-teal-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-teal-600 disabled:opacity-50"
                     >
-                      {loading ? 'Sending...' : 'Resend Verification Link'}
+                      {emailLoading ? 'Sending...' : 'Resend Verification Link'}
                     </button>
                      <button
                         onClick={() => { setError(''); setMessage(''); }}
@@ -1258,6 +1316,7 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-teal-50 to-cyan-100 flex items-center justify-center p-4 auth-screen-enter-active">
+             {showTroubleshooting && <TroubleshootingModal onClose={() => setShowTroubleshooting(false)} />}
             <div className="w-full max-w-sm">
                 <div className="text-center mb-8">
                     <h1 className="text-4xl font-bold text-gray-800">Dumble's Door</h1>
@@ -1280,7 +1339,7 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
                     </div>
 
                     <form onSubmit={handleEmailAuth} className="space-y-4">
-                        {error && <p className="text-red-500 text-xs text-center bg-red-50 p-2 rounded-md">{error}</p>}
+                        <AuthErrorDisplay message={error} onShowTroubleshoot={() => setShowTroubleshooting(true)} />
                         {message && (
                             <div className="text-green-600 text-sm text-center bg-green-50 p-3 rounded-md">
                                 <p>{message}</p>
@@ -1341,10 +1400,10 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
 
                         <button
                             type="submit"
-                            disabled={loading}
+                            disabled={emailLoading || googleLoading}
                             className="w-full bg-teal-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-teal-600 transition-colors disabled:opacity-50"
                         >
-                            {loading ? 'Processing...' : (isLoginView ? 'Login' : 'Create Account')}
+                            {emailLoading ? 'Processing...' : (isLoginView ? 'Login' : 'Create Account')}
                         </button>
                     </form>
                     
@@ -1354,9 +1413,9 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
                         <div className="flex-grow border-t border-gray-300"></div>
                     </div>
                     
-                    <button onClick={() => handleSocialLogin('google')} disabled={loading} className="w-full flex items-center justify-center gap-3 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-70">
+                    <button onClick={() => handleSocialLogin('google')} disabled={emailLoading || googleLoading} className="w-full flex items-center justify-center gap-3 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-70">
                        <GoogleIcon />
-                       <span className="text-sm font-semibold text-gray-700">{loading ? 'Redirecting...' : 'Google'}</span>
+                       <span className="text-sm font-semibold text-gray-700">{googleLoading ? 'Redirecting...' : 'Google'}</span>
                     </button>
                 </div>
             </div>

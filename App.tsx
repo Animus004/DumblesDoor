@@ -1,6 +1,9 @@
 
 
 
+
+
+
 // Trigger Vercel deployment
 // FIX: Imported useState, useEffect, and useRef from React to resolve hook-related errors.
 import React, { useState, useEffect, useRef } from 'react';
@@ -957,6 +960,12 @@ const getFriendlyAuthErrorMessage = (message: string): string => {
    if (lowerCaseMessage.includes('to signup, please provide a password')) {
       return 'It looks like you signed up with a social provider. Please use the social login button to continue.';
   }
+  if (lowerCaseMessage.includes('oauth') && (lowerCaseMessage.includes('redirect') || lowerCaseMessage.includes('origin'))) {
+      return 'There was a social login error. This is likely a configuration issue. Please ensure you are accessing the app from an authorized URL.';
+  }
+  if (lowerCaseMessage.includes('for security purposes, you need to solve a captcha')) {
+      return 'Please solve the captcha to continue. If you don\'t see one, try disabling ad-blockers.';
+  }
 
   // Log any unhandled errors to the console for debugging
   console.warn('Unhandled Supabase auth error:', message);
@@ -1172,16 +1181,23 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
     const handleSocialLogin = async (provider: Provider) => {
         setLoading(true);
         setError('');
+        setMessage('');
         if (!supabase) {
             setError("Database connection failed.");
             setLoading(false);
             return;
         }
-        const { error } = await supabase.auth.signInWithOAuth({ provider });
+        const { error } = await supabase.auth.signInWithOAuth({ 
+            provider,
+            options: {
+                redirectTo: window.location.origin,
+            },
+        });
         if (error) {
             setError(getFriendlyAuthErrorMessage(error.message));
             setLoading(false);
         }
+        // On success, the page will redirect, so no need to set loading to false.
     };
 
     const handleResendVerification = async () => {
@@ -1338,9 +1354,9 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
                         <div className="flex-grow border-t border-gray-300"></div>
                     </div>
                     
-                    <button onClick={() => handleSocialLogin('google')} className="w-full flex items-center justify-center gap-3 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50">
+                    <button onClick={() => handleSocialLogin('google')} disabled={loading} className="w-full flex items-center justify-center gap-3 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-70">
                        <GoogleIcon />
-                       <span className="text-sm font-semibold text-gray-700">Google</span>
+                       <span className="text-sm font-semibold text-gray-700">{loading ? 'Redirecting...' : 'Google'}</span>
                     </button>
                 </div>
             </div>

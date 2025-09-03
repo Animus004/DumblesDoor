@@ -63,7 +63,7 @@ export interface Appointment {
 
 // Represents a row in the 'ai_feedback' table
 export interface AIFeedback {
-  id: string;
+  id:string;
   pet_id: string;
   auth_user_id: string;
   input_data: {
@@ -87,15 +87,66 @@ export interface PetbookPost {
   post_type: 'general' | 'adoption_story' | 'tip' | 'tribute';
 }
 
+export interface HealthCategoryAnalysis {
+    category: 'Coat & Skin' | 'Eyes & Ears' | 'Dental Health' | 'Body Condition';
+    score: number; // 0-100
+    status: 'Excellent' | 'Good' | 'Concern';
+    observation: string;
+    interpretation: string; // Plain-language explanation of the observation
+    confidence: number; // 0-100 confidence in this specific assessment
+    reliability: 'High' | 'Medium' | 'Low'; // Based on image quality/clarity
+}
+
+export interface CareRecommendation {
+    priority: 'Immediate' | 'Routine' | 'Preventive';
+    title: string;
+    guidance: string; // Detailed step-by-step instructions
+    timeline: string; // e.g., "Daily", "Within the next week", "At the next check-up"
+    icon_name?: string; // e.g., "grooming_brush", "vet_visit"
+    difficulty?: 'Easy DIY' | 'Moderate' | 'Professional Help Required';
+    estimatedCost?: string; // e.g., "₹200 - ₹500"
+}
+
+export interface ActionItem {
+    priority: 'High' | 'Medium' | 'Low';
+    title: string;
+    details: string;
+    icon_name?: string; // e.g., "vet_appointment", "medication"
+    estimatedCost?: string;
+}
+
+// New interfaces for actionable insights
+export interface ProductRecommendation {
+    name: string;
+    reason: string; // Why this product is recommended
+    estimatedCost: string; // e.g., "₹800"
+}
+
+export interface LocalService {
+    type: 'Veterinary Clinic' | 'Emergency Vet' | 'Groomer' | 'Pet Store';
+    name: string;
+    address: string;
+}
+
+
 // The result from the Gemini health check analysis
 export interface HealthCheckResult {
-  breed: string;
-  healthAnalysis: string;
-  careTips: string[];
-  vetRecommendation: boolean;
-  groomingRecommendation: boolean;
-  productRecommendations: string[];
+  reportId: string; // e.g., "RPT-DUMBLES-20240715-1A2B"
+  analysisDate: string; // ISO Date string
+  executiveSummary: string;
+  breedAnalysis: {
+    breedName: string;
+    confidence: number; // 0-100
+    characteristics: string[];
+  };
+  overallHealthScore: number;
+  healthAssessment: HealthCategoryAnalysis[];
+  careRecommendations: CareRecommendation[];
+  actionItems: ActionItem[];
+  localServices: LocalService[];
+  productRecommendations?: ProductRecommendation[];
 }
+
 
 export type TimelineEntryData = PetbookPost | Appointment | AIFeedback;
 

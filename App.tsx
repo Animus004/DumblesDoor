@@ -1695,8 +1695,8 @@ const App: React.FC = () => {
     };
 
     const handleAnalyzePetHealth = async (imageFile: File, notes: string) => {
-        if (!activePet) {
-            setHealthCheckError("No active pet selected.");
+        if (!activePet || !supabase) {
+            setHealthCheckError("No active pet selected or database connection failed.");
             return;
         }
         setIsCheckingHealth(true);
@@ -1715,17 +1715,33 @@ const App: React.FC = () => {
                 };
                 
                 try {
+                    // 1. Upload image to Supabase Storage
+                    let imageUrl = '';
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (user) {
+                        const filePath = `${user.id}/${activePet.id}/health-check_${Date.now()}.jpeg`;
+                        const { error: uploadError } = await supabase.storage.from('pet_images').upload(filePath, imageFile, {
+                            cacheControl: '3600',
+                            upsert: false,
+                            contentType: imageFile.type
+                        });
+
+                        if (uploadError) throw new Error(`Image upload failed: ${uploadError.message}`);
+                        
+                        const { data: urlData } = supabase.storage.from('pet_images').getPublicUrl(filePath);
+                        imageUrl = urlData.publicUrl;
+                    }
+
+                    // 2. Analyze with Gemini
                     const result = await geminiService.analyzePetHealth(base64Image, imageFile.type, notes, petContext);
                     setHealthCheckResult(result);
 
-                    if (result && supabase) {
-                      const { data: { user } } = await supabase.auth.getUser();
-                      if (!user) return;
-
+                    // 3. Save feedback record with image URL
+                    if (result && user) {
                       const newFeedbackEntry: Omit<AIFeedback, 'id' | 'submitted_at'> = {
                         pet_id: activePet.id,
                         auth_user_id: user.id,
-                        input_data: { notes },
+                        input_data: { notes, photo_url: imageUrl },
                         ai_response: JSON.stringify(result),
                         status: 'completed',
                       };

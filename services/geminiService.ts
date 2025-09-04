@@ -77,6 +77,7 @@ Your response MUST be a single, valid JSON object that strictly adheres to the p
     *   **type**: (string) The type of service from this list: ['Veterinary Clinic', 'Emergency Vet', 'Groomer', 'Pet Store'].
     *   **name**: (string) A fictional name for the service (e.g., "Pawsitive Care Vet Clinic").
     *   **address**: (string) A fictional address (e.g., "123, Koramangala, Bangalore").
+    *   **phone**: (string) A fictional 10-digit Indian mobile number (e.g., "9876543210").
 
 10. **productRecommendations**: (array of objects) Suggest 1-2 relevant products.
     For each product object:
@@ -160,8 +161,9 @@ Your response MUST be a single, valid JSON object that strictly adheres to the p
                   type: { type: Type.STRING },
                   name: { type: Type.STRING },
                   address: { type: Type.STRING },
+                  phone: { type: Type.STRING },
                 },
-                required: ["type", "name", "address"]
+                required: ["type", "name", "address", "phone"]
               }
             },
             productRecommendations: {

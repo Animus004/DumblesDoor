@@ -1816,7 +1816,7 @@ const App: React.FC = () => {
             case 'profile':
                 return <ProfileScreen user={user} profile={userProfile} pets={pets} onBack={() => setActiveScreen('home')} onLogout={handleLogout} onDataUpdate={handleDataUpdate} onNavigate={setActiveScreen} sessionStartTime={sessionStartTime || Date.now()} draftPostContent={draftPostContent} />;
             case 'health':
-                return <HealthCheckScreen pet={activePet} onBack={() => { setActiveScreen('home'); setHealthCheckResult(null); setHealthCheckError(null); }} onAnalyze={handleAnalyzePetHealth} isChecking={isCheckingHealth} result={healthCheckResult} error={healthCheckError} />;
+                return <HealthCheckScreen pet={activePet} onBack={() => { setActiveScreen('home'); setHealthCheckResult(null); setHealthCheckError(null); }} onAnalyze={handleAnalyzePetHealth} isChecking={isCheckingHealth} result={healthCheckResult} error={healthCheckError} onNavigate={setActiveScreen} />;
             case 'vet':
                 return <VetBookingFlow onBack={() => setActiveScreen('home')} user={user} pets={pets} />;
             case 'essentials':

@@ -178,6 +178,7 @@ export interface LocalService {
     type: 'Veterinary Clinic' | 'Emergency Vet' | 'Groomer' | 'Pet Store';
     name: string;
     address: string;
+    phone?: string;
 }
 
 

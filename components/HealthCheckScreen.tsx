@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import type { Pet, HealthCheckResult, AIFeedback, HealthCategoryAnalysis, CareRecommendation, ActionItem, LocalService } from '../types';
+import type { Pet, HealthCheckResult, AIFeedback, HealthCategoryAnalysis, CareRecommendation, ActionItem, LocalService, ActiveScreen } from '../types';
 import { supabase } from '../services/supabaseClient';
 import Tooltip from './Tooltip';
 import Confetti from './Confetti';
@@ -12,6 +12,7 @@ interface HealthCheckScreenProps {
   isChecking: boolean;
   result: HealthCheckResult | null;
   error: string | null;
+  onNavigate: (screen: ActiveScreen) => void;
 }
 
 // --- Visual Report Sub-components ---
@@ -40,7 +41,7 @@ const CARE_ICONS: { [key: string]: React.ReactNode } = {
 };
 
 
-const VisualHealthReport: React.FC<{ pet: Pet; result: HealthCheckResult; previousResult?: HealthCheckResult | null; onBack: () => void; }> = ({ pet, result, previousResult, onBack }) => {
+const VisualHealthReport: React.FC<{ pet: Pet; result: HealthCheckResult; previousResult?: HealthCheckResult | null; onBack: () => void; onNavigate: (screen: ActiveScreen) => void; }> = ({ pet, result, previousResult, onBack, onNavigate }) => {
     const [showCelebration, setShowCelebration] = useState(false);
     const [showShareToast, setShowShareToast] = useState(false);
     
@@ -256,8 +257,8 @@ const VisualHealthReport: React.FC<{ pet: Pet; result: HealthCheckResult; previo
                                         <p className="font-bold text-gray-800">{service.name}</p>
                                         <p className="text-sm text-gray-600 mb-2">{service.address}</p>
                                         <div className="flex gap-2">
-                                            <button className={`w-full text-sm font-semibold py-1.5 rounded-md ${style.button}`}>Call</button>
-                                            <button className={`w-full text-sm font-semibold py-1.5 rounded-md ${style.button}`}>Book Now</button>
+                                            <a href={service.phone ? `tel:${service.phone}` : undefined} onClick={(e) => !service.phone && e.preventDefault()} className={`w-full text-center text-sm font-semibold py-1.5 rounded-md ${style.button} ${!service.phone ? 'opacity-50 cursor-not-allowed' : ''}`}>Call</a>
+                                            <button onClick={() => onNavigate('vet')} className={`w-full text-sm font-semibold py-1.5 rounded-md ${style.button}`}>Book Now</button>
                                         </div>
                                     </div>
                                 )
@@ -335,7 +336,7 @@ const HealthDashboard: React.FC<{
 };
 
 
-const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({ pet, onBack, onAnalyze, isChecking, result, error }) => {
+const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({ pet, onBack, onAnalyze, isChecking, result, error, onNavigate }) => {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
@@ -482,11 +483,11 @@ const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({ pet, onBack, onAn
   }
 
   if (viewingResult && pet) {
-      return <VisualHealthReport pet={pet} result={viewingResult.current} previousResult={viewingResult.previous} onBack={() => setViewingResult(null)} />;
+      return <VisualHealthReport pet={pet} result={viewingResult.current} previousResult={viewingResult.previous} onBack={() => setViewingResult(null)} onNavigate={onNavigate} />;
   }
 
   if (result && pet) {
-    return <VisualHealthReport pet={pet} result={result} previousResult={history[0]} onBack={handleBackToDashboard} />;
+    return <VisualHealthReport pet={pet} result={result} previousResult={history[0]} onBack={handleBackToDashboard} onNavigate={onNavigate} />;
   }
 
   if (showCamera || capturedImage) {

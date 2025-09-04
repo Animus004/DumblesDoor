@@ -1641,6 +1641,7 @@ const App: React.FC = () => {
 
 
     // --- EFFECTS ---
+    // Effect for one-time setup: checking env vars and setting up auth listener
     useEffect(() => {
         const requiredVars = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'VITE_API_KEY'];
         const missing = requiredVars.filter(v => !import.meta.env[v]);
@@ -1648,16 +1649,11 @@ const App: React.FC = () => {
         
         if (missing.length > 0 || !supabase) return;
 
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('action') === 'logout' && user) {
-            const analyticsData: LogoutAnalytics = { user_id: user.id, scope: 'local', ux_variant: 'button', reason: 'PWA Shortcut' };
-            handleLogout(analyticsData);
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-
+        // Setup the listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
             setUser(session?.user ?? null);
+            
             if (_event === 'SIGNED_IN') {
                 setSessionStartTime(Date.now());
             }
@@ -1668,6 +1664,7 @@ const App: React.FC = () => {
             }
         });
         
+        // Check initial session
         supabase.auth.getSession().then(({ data: { session }}) => {
             if (session) {
                 setSessionStartTime(Date.now());
@@ -1675,6 +1672,18 @@ const App: React.FC = () => {
         });
 
         return () => subscription.unsubscribe();
+    }, []); // Empty dependency array ensures this runs only once
+
+    // Effect for handling URL actions when user state is known
+    useEffect(() => {
+        if (!user || !supabase) return;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('action') === 'logout') {
+            const analyticsData: LogoutAnalytics = { user_id: user.id, scope: 'local', ux_variant: 'button', reason: 'PWA Shortcut' };
+            handleLogout(analyticsData);
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
     }, [user]);
     
     

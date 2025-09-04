@@ -1629,7 +1629,6 @@ const App: React.FC = () => {
         if (!user) return;
         alert("Account deletion initiated. All your data will be purged after a 30-day grace period.");
         // We log out globally as part of the deletion flow.
-        // FIX: Add missing 'user_id' property to LogoutAnalytics object.
         const analyticsData: LogoutAnalytics = {
             user_id: user.id,
             scope: 'global',
@@ -1650,7 +1649,6 @@ const App: React.FC = () => {
         if (missing.length > 0 || !supabase) return;
 
         const urlParams = new URLSearchParams(window.location.search);
-        // FIX: Add a check for the user object and include the required 'user_id' property.
         if (urlParams.get('action') === 'logout' && user) {
             const analyticsData: LogoutAnalytics = { user_id: user.id, scope: 'local', ux_variant: 'button', reason: 'PWA Shortcut' };
             handleLogout(analyticsData);
@@ -1677,7 +1675,6 @@ const App: React.FC = () => {
         });
 
         return () => subscription.unsubscribe();
-    // FIX: Add 'user' to the dependency array to ensure the effect has access to the latest user state.
     }, [user]);
     
     

@@ -67,6 +67,8 @@ export interface VetService {
 
 export interface VetReview {
     id: string;
+    vet_id: string;
+    author_user_id: string;
     author_name: string;
     rating: number; // 1-5
     comment: string;

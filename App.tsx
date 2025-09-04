@@ -1,7 +1,7 @@
 // Trigger Vercel deployment
 // FIX: Imported useState, useEffect, and useRef from React to resolve hook-related errors.
 import React, { useState, useEffect, useRef } from 'react';
-import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Vet, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile, ActiveScreen, AdoptionListing, AdoptablePet, Shelter, ConnectProfile, AdoptionApplication, LogoutAnalytics } from './types';
+import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile, ActiveScreen, AdoptionListing, AdoptablePet, Shelter, ConnectProfile, AdoptionApplication, LogoutAnalytics } from './types';
 import { ICONS } from './constants';
 import * as geminiService from './services/geminiService';
 import { supabase } from './services/supabaseClient';
@@ -22,6 +22,8 @@ import ShopScreen from './components/ShopScreen';
 import { marked } from 'marked';
 import SafetyCenterScreen from './components/SafetyCenterScreen';
 import DataPrivacyScreen from './components/DataPrivacyScreen';
+import VetBookingFlow from './components/VetBookingFlow';
+import MyAppointmentsScreen from './components/MyAppointmentsScreen';
 
 // --- CONNECT SCREEN IMPLEMENTATION ---
 const ConnectScreen: React.FC<{ currentUserProfile: UserProfile | null; currentUser: User | null; }> = ({ currentUserProfile, currentUser }) => {
@@ -899,22 +901,6 @@ const MyApplicationsScreen: React.FC<{ onBack: () => void; }> = ({ onBack }) => 
 
 
 // --- UTILITY & PLACEHOLDER COMPONENTS ---
-
-const PlaceholderScreen: React.FC<{ title: string; icon: React.ReactNode; message: string; onBack: () => void; }> = ({ title, icon, message, onBack }) => (
-    <div className="h-screen flex flex-col">
-        <header className="p-4 flex items-center border-b">
-            <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-            </button>
-            <h1 className="text-xl font-bold">{title}</h1>
-        </header>
-        <main className="flex-grow flex flex-col items-center justify-center text-center p-8 bg-gray-50">
-            <div className="text-gray-400 mb-4">{icon}</div>
-            <h2 className="text-2xl font-bold text-gray-700">{title} Coming Soon!</h2>
-            <p className="text-gray-500 mt-2 max-w-sm">{message}</p>
-        </main>
-    </div>
-);
 
 const AppErrorScreen: React.FC<{ message: string; onRetry: () => void; }> = ({ message, onRetry }) => (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 text-center">
@@ -1821,7 +1807,7 @@ const App: React.FC = () => {
             case 'health':
                 return <HealthCheckScreen pet={activePet} onBack={() => { setActiveScreen('home'); setHealthCheckResult(null); setHealthCheckError(null); }} onAnalyze={handleAnalyzePetHealth} isChecking={isCheckingHealth} result={healthCheckResult} error={healthCheckError} />;
             case 'vet':
-                return <PlaceholderScreen title="Vet Booking" icon={ICONS.VET_BOOKING} message="Our vet booking feature is under development. Soon you'll be able to find and book appointments with trusted local veterinarians." onBack={() => setActiveScreen('home')} />;
+                return <VetBookingFlow onBack={() => setActiveScreen('home')} user={user} pets={pets} />;
             case 'essentials':
                 return <ShopScreen onBack={() => setActiveScreen('home')} />;
             case 'admin':
@@ -1831,6 +1817,8 @@ const App: React.FC = () => {
                 return <AdoptionApplicationScreen listing={adoptionListingForApplication} userProfile={userProfile} onBack={() => setActiveScreen('adoption')} onSubmitted={() => { alert('Application submitted successfully!'); setActiveScreen('myApplications'); }} />
             case 'myApplications':
                 return <MyApplicationsScreen onBack={() => setActiveScreen('profile')} />;
+            case 'myVetAppointments':
+                return <MyAppointmentsScreen onBack={() => setActiveScreen('profile')} />;
             case 'safetyCenter':
                 return <SafetyCenterScreen onBack={() => setActiveScreen('profile')} />;
             case 'dataPrivacy':

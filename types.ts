@@ -27,17 +27,79 @@ export interface Pet {
   notes?: string;
 }
 
+
+// --- VET BOOKING SYSTEM TYPES ---
+
 export interface Vet {
   id: string;
   name: string;
   photo_url: string;
-  specialization: string;
+  specialization: string[];
   address: string;
   city: string;
   phone: string;
   email: string;
-  available_time: string;
+  bio: string;
+  rating: number; // e.g., 4.8
+  review_count: number;
+  verified: boolean;
+  services?: VetService[];
+  reviews?: VetReview[];
+  // For PostGIS geography(Point, 4326) type
+  location?: any;
+  // New fields for advanced search
+  is_24_7: boolean;
+  accepted_insurance: string[];
+  photo_gallery: string[];
 }
+
+export interface NearbyVet extends Vet {
+    distance_km: number;
+}
+
+export interface VetService {
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    duration_minutes: number;
+}
+
+export interface VetReview {
+    id: string;
+    author_name: string;
+    rating: number; // 1-5
+    comment: string;
+    created_at: string;
+    verified_appointment: boolean;
+}
+
+// Represents a row in the 'appointments' table
+export interface Appointment {
+  id: string;
+  pet_id: string;
+  vet_id: string;
+  auth_user_id: string;
+  service_id: string;
+  appointment_time: string; // ISO string for the appointment start time
+  duration_minutes: number;
+  status: 'confirmed' | 'completed' | 'cancelled_by_user' | 'cancelled_by_vet';
+  notes: string; // User notes during booking
+  created_at: string;
+  // For UI display
+  vet?: Pick<Vet, 'name' | 'address' | 'photo_url'>;
+  pet?: Pick<Pet, 'name' | 'photo_url'>;
+  service?: Pick<VetService, 'name' | 'price'>;
+  // New fields for appointment management
+  pre_visit_data?: {
+      reason_for_visit: string;
+      symptoms: string;
+      changes_in_behavior: string;
+  };
+  documents?: { name: string; url: string; }[];
+  vet_notes?: string; // Markdown string from the vet
+}
+
 
 export interface Product {
   id: string;
@@ -47,18 +109,6 @@ export interface Product {
   description: string;
   price: number;
   stock: number;
-}
-
-// Represents a row in the 'appointments' table
-export interface Appointment {
-  id: string;
-  pet_id: string;
-  vet_id: string;
-  auth_user_id: string;
-  status: 'booked' | 'completed' | 'cancelled';
-  notes: string; // Will store JSON with { dateTime, consultationType }
-  created_at: string;
-  vet?: Vet; // For UI display
 }
 
 // Represents a row in the 'ai_feedback' table
@@ -240,7 +290,7 @@ export interface ConnectProfile extends UserProfile {
 
 
 export type ActiveModal = 'chat' | null;
-export type ActiveScreen = 'home' | 'book' | 'connect' | 'vet' | 'profile' | 'health' | 'adoption' | 'admin' | 'essentials' | 'petDetail' | 'adoptionApplication' | 'myApplications' | 'safetyCenter' | 'dataPrivacy';
+export type ActiveScreen = 'home' | 'book' | 'connect' | 'vet' | 'profile' | 'health' | 'adoption' | 'admin' | 'essentials' | 'petDetail' | 'adoptionApplication' | 'myApplications' | 'safetyCenter' | 'dataPrivacy' | 'myVetAppointments';
 
 // This type matches the Gemini SDK's expectation for chat history
 export interface GeminiChatMessage {

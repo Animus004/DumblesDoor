@@ -1840,7 +1840,7 @@ const App: React.FC = () => {
     };
 
     return (
-        <div className={`h-screen w-screen overflow-hidden ${isAnimatingLogout ? 'app-container-exit-active' : ''}`}>
+        <div className={`h-screen w-screen ${isAnimatingLogout ? 'app-container-exit-active' : ''}`}>
             {appError && <div className="fixed top-5 right-5 bg-red-600 text-white py-2 px-4 rounded-lg shadow-lg z-50 animate-pulse">{appError}</div>}
             <main className="h-full">
                 {renderActiveScreen()}

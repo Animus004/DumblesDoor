@@ -336,6 +336,7 @@ export interface EncyclopediaTopic {
 // --- ANALYTICS ---
 
 export interface LogoutAnalytics {
+    user_id: string;
     scope: 'local' | 'global';
     ux_variant: 'swipe' | 'button'; // For A/B testing
     satisfaction_rating?: number;

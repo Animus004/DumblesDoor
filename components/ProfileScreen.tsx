@@ -186,7 +186,9 @@ const LogoutBottomSheet: React.FC<{
 
     const handleConfirmLogout = () => {
         setIsLoggingOut(true);
+        // FIX: Add missing 'user_id' property to LogoutAnalytics object.
         onLogout({
+            user_id: user.id,
             ...feedback,
             scope: signOutEverywhere ? 'global' : 'local',
             ux_variant: uxVariant,

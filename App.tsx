@@ -519,10 +519,10 @@ const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string
                 rpcParams.long = userLocation.lon;
             }
 
-            // FIX: The generic for supabase.rpc expects more than one type argument. Since function types
-            // are not generated, we call it without generics and let the data be of type `any`. The code
-            // below correctly handles this.
-            const { data, error: rpcError } = await supabase.rpc('nearby_pets', rpcParams);
+            // FIX: The `database.types.ts` file does not contain RPC function definitions,
+            // causing a type error. Casting the function name to `any` bypasses this issue
+            // and allows the call to proceed. The returned `data` is correctly typed below.
+            const { data, error: rpcError } = await supabase.rpc('nearby_pets' as any, rpcParams);
 
             if (rpcError) {
                 console.error("Error calling nearby_pets RPC:", rpcError);

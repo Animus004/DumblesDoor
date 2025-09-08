@@ -529,9 +529,10 @@ const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string
                 setError("Could not fetch nearby pets. Please try again later.");
                 setListings([]);
             } else {
-                // FIX: Explicitly type the result of the RPC call to avoid potential type inference issues with `any[]`.
-                // FIX: Cast `data` to `any` to break the `never` type propagation from the RPC call, which was causing a downstream error in the `.filter()` method.
-                const petsFromRpc: AdoptablePet[] = (data as any) || [];
+                // FIX: Corrected a type error where `data` from an untyped RPC call was inferred as `never`.
+                // Casting `data` to `AdoptablePet[]` ensures it's correctly typed as an array, resolving the
+                // error in the subsequent `.filter()` method.
+                const petsFromRpc: AdoptablePet[] = (data as AdoptablePet[]) || [];
                 const filtered = petsFromRpc.filter((p) => {
                     const speciesMatch = species === 'All' || p.species === species;
                     const ageMatch = age === 'All' || p.age === age;
@@ -1436,13 +1437,16 @@ const useDataFetching = (user: User | null) => {
     
     const fetchData = async (currentUser: User) => {
         try {
+            // FIX: Replaced .single() with .maybeSingle() for a more robust profile query.
+            // This prevents an error if duplicate profiles exist for a user (an edge case in dev)
+            // and allows the app to proceed instead of crashing to the error screen.
             const { data: profileData, error: profileError } = await supabase
                 .from('user_profiles')
                 .select('*')
                 .eq('auth_user_id', currentUser.id)
-                .single();
+                .maybeSingle();
                 
-            if (profileError && profileError.code !== 'PGRST116') throw profileError;
+            if (profileError) throw profileError;
             
             if (!profileData) {
                 setAppState('onboarding-profile');

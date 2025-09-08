@@ -532,7 +532,7 @@ const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string
                 // FIX: Corrected a type error where `data` from an untyped RPC call was inferred as `never`.
                 // Casting `data` to `AdoptablePet[]` ensures it's correctly typed as an array, resolving the
                 // error in the subsequent `.filter()` method.
-                const petsFromRpc: AdoptablePet[] = (data as AdoptablePet[]) || [];
+                const petsFromRpc: AdoptablePet[] = (data as any as AdoptablePet[]) || [];
                 const filtered = petsFromRpc.filter((p) => {
                     const speciesMatch = species === 'All' || p.species === species;
                     const ageMatch = age === 'All' || p.age === age;
@@ -1436,10 +1436,14 @@ const useDataFetching = (user: User | null) => {
     const [error, setError] = useState<string | null>(null);
     
     const fetchData = async (currentUser: User) => {
+        // Guard against running if supabase client is not ready.
+        if (!supabase) {
+            setError("Database client is not initialized. Please configure environment variables.");
+            setAppState('error');
+            setLoading(false);
+            return;
+        }
         try {
-            // FIX: Replaced .single() with .maybeSingle() for a more robust profile query.
-            // This prevents an error if duplicate profiles exist for a user (an edge case in dev)
-            // and allows the app to proceed instead of crashing to the error screen.
             const { data: profileData, error: profileError } = await supabase
                 .from('user_profiles')
                 .select('*')
@@ -1486,12 +1490,19 @@ const useDataFetching = (user: User | null) => {
     };
     
     useEffect(() => {
-        if (user) {
+        // FIX: This effect now checks for both `user` and `supabase` to prevent a race condition
+        // where `fetchData` might be called before the supabase client is initialized.
+        if (user && supabase) {
             setLoading(true);
             fetchData(user);
         } else {
+            // This block handles both the initial state (no user) and logout.
             setLoading(false);
-            setAppState('loading'); // No user, show auth
+            setAppState('loading');
+            // Clear all user-specific data on logout or if supabase isn't ready.
+            setUserProfile(null);
+            setPets([]);
+            setActivePet(null);
         }
     }, [user]);
 

@@ -519,7 +519,8 @@ const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string
                 rpcParams.long = userLocation.lon;
             }
 
-            const { data, error: rpcError } = await supabase.rpc('nearby_pets', rpcParams);
+            // FIX: Explicitly type the Supabase RPC call with <AdoptablePet> to resolve a type inference issue.
+            const { data, error: rpcError } = await supabase.rpc<AdoptablePet>('nearby_pets', rpcParams);
 
             if (rpcError) {
                 console.error("Error calling nearby_pets RPC:", rpcError);
@@ -1445,8 +1446,7 @@ const useDataFetching = (user: User | null) => {
                 setLoading(false);
                 return;
             }
-            // FIX: Cast profileData to `any` to resolve type mismatch with `emergency_contact`.
-            setUserProfile(profileData as any);
+            setUserProfile(profileData);
             
             const { data: petsData, error: petsError } = await supabase
                 .from('pets')

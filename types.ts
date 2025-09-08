@@ -1,4 +1,7 @@
-import { Database } from './database.types';
+import { Database, Json } from './database.types';
+
+// FIX: Export the 'Json' type to make it available to other modules.
+export type { Json };
 
 export type ProfessionalProfile = Database['public']['Tables']['professional_profiles']['Row'];
 export type DbVetService = Database['public']['Tables']['vet_services']['Row'];
@@ -14,7 +17,7 @@ export interface UserProfile {
   role: 'user' | 'admin';
   interests: string[] | null;
   verified: boolean;
-  emergency_contact: { name: string; phone: string; } | null;
+  emergency_contact: Json | null;
 }
 
 export interface Pet {

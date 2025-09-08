@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
 import type { User } from '@supabase/supabase-js';
-import type { Pet, UserProfile, ActiveScreen, LogoutAnalytics } from '../types';
+import type { Pet, UserProfile, ActiveScreen, LogoutAnalytics, Json } from '../types';
 import PetForm from './PetForm';
 
 // --- HELPER COMPONENTS ---
@@ -282,11 +282,27 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, profile, pets, onBa
     // Form/action states
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-    const [emergencyContact, setEmergencyContact] = useState(profile?.emergency_contact || { name: '', phone: '' });
+    
+    const parseEmergencyContact = (contact: Json | null): { name: string; phone: string } => {
+        if (
+            contact &&
+            typeof contact === 'object' &&
+            !Array.isArray(contact) &&
+            'name' in contact &&
+            'phone' in contact &&
+            typeof contact.name === 'string' &&
+            typeof contact.phone === 'string'
+        ) {
+            return { name: contact.name, phone: contact.phone };
+        }
+        return { name: '', phone: '' };
+    };
+    
+    const [emergencyContact, setEmergencyContact] = useState(() => parseEmergencyContact(profile?.emergency_contact));
 
     useEffect(() => {
         if (profile) {
-            setEmergencyContact(profile.emergency_contact || { name: '', phone: '' });
+            setEmergencyContact(parseEmergencyContact(profile.emergency_contact));
         }
     }, [profile]);
 

@@ -530,7 +530,8 @@ const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string
                 setListings([]);
             } else {
                 // FIX: Explicitly type the result of the RPC call to avoid potential type inference issues with `any[]`.
-                const petsFromRpc: AdoptablePet[] = data || [];
+                // FIX: Cast `data` to `any` to break the `never` type propagation from the RPC call, which was causing a downstream error in the `.filter()` method.
+                const petsFromRpc: AdoptablePet[] = (data as any) || [];
                 const filtered = petsFromRpc.filter((p) => {
                     const speciesMatch = species === 'All' || p.species === species;
                     const ageMatch = age === 'All' || p.age === age;
@@ -1663,25 +1664,15 @@ const App: React.FC = () => {
         
         if (missing.length > 0 || !supabase) return;
 
-        // Check initial session
-        supabase.auth.getSession().then(({ data: { session }}) => {
-            // This is crucial for restoring the session on page load.
-            setSession(session);
-            setUser(session?.user ?? null);
-            if (session) {
-                setSessionStartTime(Date.now());
-            }
-        });
-
-        // Setup the listener
+        // The onAuthStateChange listener handles initial session check (INITIAL_SESSION event)
+        // and all subsequent auth events in one place. This is the most robust pattern.
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
             setUser(session?.user ?? null);
             
-            if (_event === 'SIGNED_IN') {
+            if (_event === 'SIGNED_IN' || (_event === 'INITIAL_SESSION' && session)) {
                 setSessionStartTime(Date.now());
-            }
-            if (_event === 'SIGNED_OUT') {
+            } else if (_event === 'SIGNED_OUT') {
                 setActiveScreen('home');
                 setIsAnimatingLogout(false);
                 setSessionStartTime(null);

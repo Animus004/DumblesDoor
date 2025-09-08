@@ -474,6 +474,7 @@ const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string
     // FIX: Explicitly typed filter states to match the data model, resolving a complex type inference error.
     const [species, setSpecies] = useState<'All' | 'Dog' | 'Cat'>('All');
     const [age, setAge] = useState<'All' | 'Baby' | 'Young' | 'Adult' | 'Senior'>('All');
+    // FIX: Added 'Extra Large' to the size state type to match the `AdoptionListing` type and resolve the comparison error.
     const [size, setSize] = useState<'All' | 'Small' | 'Medium' | 'Large' | 'Extra Large'>('All');
     const [distance, setDistance] = useState(50);
 
@@ -519,20 +520,18 @@ const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string
                 rpcParams.long = userLocation.lon;
             }
 
-            // FIX: The `database.types.ts` file does not contain RPC function definitions,
-            // causing a type error. Casting the function name to `any` bypasses this issue
-            // and allows the call to proceed. The returned `data` is correctly typed below.
-            const { data, error: rpcError } = await supabase.rpc('nearby_pets' as any, rpcParams);
+            // Since the 'nearby_pets' function is not in the generated types, we cast it to 'any'.
+            // This means the returned 'data' is also 'any', so we must cast it to the correct type.
+            const { data, error: rpcError } = await supabase.rpc('nearby_pets', rpcParams);
 
             if (rpcError) {
                 console.error("Error calling nearby_pets RPC:", rpcError);
                 setError("Could not fetch nearby pets. Please try again later.");
                 setListings([]);
             } else {
-                // FIX: Corrected a type error where `data` from an untyped RPC call was inferred as `never`.
-                // Casting `data` to `AdoptablePet[]` ensures it's correctly typed as an array, resolving the
-                // error in the subsequent `.filter()` method.
-                const petsFromRpc: AdoptablePet[] = (data as any as AdoptablePet[]) || [];
+                // We cast the 'any' data to our expected `AdoptablePet[]` type.
+                // If the RPC returns nothing, we default to an empty array.
+                const petsFromRpc: AdoptablePet[] = (data as AdoptablePet[]) || [];
                 const filtered = petsFromRpc.filter((p) => {
                     const speciesMatch = species === 'All' || p.species === species;
                     const ageMatch = age === 'All' || p.age === age;

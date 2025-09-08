@@ -1482,6 +1482,7 @@ const useDataFetching = (user: User | null) => {
     
     useEffect(() => {
         if (user) {
+            setLoading(true);
             fetchData(user);
         } else {
             setLoading(false);
@@ -1662,6 +1663,16 @@ const App: React.FC = () => {
         
         if (missing.length > 0 || !supabase) return;
 
+        // Check initial session
+        supabase.auth.getSession().then(({ data: { session }}) => {
+            // This is crucial for restoring the session on page load.
+            setSession(session);
+            setUser(session?.user ?? null);
+            if (session) {
+                setSessionStartTime(Date.now());
+            }
+        });
+
         // Setup the listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
@@ -1677,13 +1688,6 @@ const App: React.FC = () => {
             }
         });
         
-        // Check initial session
-        supabase.auth.getSession().then(({ data: { session }}) => {
-            if (session) {
-                setSessionStartTime(Date.now());
-            }
-        });
-
         return () => subscription.unsubscribe();
     }, []); // Empty dependency array ensures this runs only once
 
@@ -1786,7 +1790,7 @@ const App: React.FC = () => {
         return <AuthScreen postLogoutMessage={logoutMessage} />;
     }
     
-    if (appState === 'loading') {
+    if (appState === 'loading' || (loading && !userProfile)) {
         return <LoadingScreen />;
     }
     

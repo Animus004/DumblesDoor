@@ -9,7 +9,7 @@ export interface UserProfile {
   auth_user_id: string;
   name: string;
   email: string;
-  phone: string;
+  phone: string | null;
   city: string;
   role?: 'user' | 'admin';
   interests?: string[]; // e.g., ["Dog parks", "Hiking", "Puppy training"]

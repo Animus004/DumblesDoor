@@ -598,7 +598,7 @@ export type Database = {
           auth_user_id: string
           name: string
           email: string
-          phone: string
+          phone: string | null
           city: string
           role: "user" | "admin"
           interests: string[] | null
@@ -609,7 +609,7 @@ export type Database = {
           auth_user_id: string
           name: string
           email: string
-          phone: string
+          phone: string | null
           city: string
           role?: "user" | "admin"
           interests?: string[] | null
@@ -620,7 +620,7 @@ export type Database = {
           auth_user_id?: string
           name?: string
           email?: string
-          phone?: string
+          phone?: string | null
           city?: string
           role?: "user" | "admin"
           interests?: string[] | null

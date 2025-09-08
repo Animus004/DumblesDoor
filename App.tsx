@@ -462,7 +462,8 @@ const PetAdoptionCard: React.FC<{ pet: AdoptablePet }> = ({ pet }) => {
     );
 };
 
-const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string) => void; }> = ({ onBack, onSelectPet }) => {
+// FIX: Changed onSelectPet prop to accept `string | null` to match the state setter it's assigned to.
+const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string | null) => void; }> = ({ onBack, onSelectPet }) => {
     const [listings, setListings] = useState<AdoptablePet[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

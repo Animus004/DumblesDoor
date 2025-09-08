@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useRef } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { OnboardingProgress } from './OnboardingProgress';
@@ -131,14 +132,18 @@ const OnboardingPetScreen: React.FC<OnboardingPetScreenProps> = ({ user, onPetAd
                 photo_url = urlData.publicUrl;
             }
 
+            // FIX: Added missing non-nullable fields with default values and cast `species` to satisfy the database schema.
             const finalPetData = {
                 auth_user_id: user.id,
                 name: petData.name,
-                species: petData.species,
+                species: petData.species as 'Dog' | 'Cat',
                 breed: petData.breed,
                 birth_date: petData.birthDate,
                 gender: petData.gender,
                 photo_url,
+                size: 'Medium' as const,
+                energy_level: 'Medium' as const,
+                temperament: [],
             };
 
             const { error: upsertError } = await supabase.from('pets').insert(finalPetData);

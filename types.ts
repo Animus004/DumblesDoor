@@ -1,3 +1,8 @@
+import { Database } from './database.types';
+
+export type ProfessionalProfile = Database['public']['Tables']['professional_profiles']['Row'];
+export type DbVetService = Database['public']['Tables']['vet_services']['Row'];
+export type VendorProduct = Database['public']['Tables']['vendor_products']['Row'];
 
 
 export interface UserProfile {
@@ -28,42 +33,17 @@ export interface Pet {
 }
 
 
-// --- VET BOOKING SYSTEM TYPES ---
+// --- VET BOOKING SYSTEM TYPES (ALIGNED WITH PROFESSIONAL PORTAL) ---
 
-export interface Vet {
-  id: string;
-  name: string;
-  photo_url: string;
-  specialization: string[];
-  address: string;
-  city: string;
-  phone: string;
-  email: string;
-  bio: string;
-  rating: number; // e.g., 4.8
-  review_count: number;
-  verified: boolean;
-  services?: VetService[];
+export interface Vet extends ProfessionalProfile {
+  distance_km?: number; // Make distance optional as it's not in the main table
+  services?: DbVetService[];
   reviews?: VetReview[];
-  // For PostGIS geography(Point, 4326) type
-  location?: any;
-  // New fields for advanced search
-  is_24_7: boolean;
-  accepted_insurance: string[];
-  photo_gallery: string[];
 }
 
-export interface NearbyVet extends Vet {
-    distance_km: number;
-}
+export type NearbyVet = Vet;
 
-export interface VetService {
-    id: string;
-    name: string;
-    description: string;
-    price: number;
-    duration_minutes: number;
-}
+export interface VetService extends DbVetService {}
 
 export interface VetReview {
     id: string;
@@ -103,15 +83,7 @@ export interface Appointment {
 }
 
 
-export interface Product {
-  id: string;
-  name: string;
-  image_url: string;
-  category: 'Food' | 'Toys' | 'Grooming' | 'Medicine' | 'Accessories';
-  description: string;
-  price: number;
-  stock: number;
-}
+export interface Product extends VendorProduct {}
 
 // Represents a row in the 'ai_feedback' table
 export interface AIFeedback {

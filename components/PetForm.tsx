@@ -59,14 +59,18 @@ const PetForm: React.FC<PetFormProps> = ({ user, petToEdit, onSave, onCancel, is
                 photo_url = urlData.publicUrl;
             }
 
+            // FIX: Added missing non-nullable fields with default values and cast `species` to satisfy the database schema.
             const petData = {
                 auth_user_id: user.id,
                 name,
-                species,
+                species: species as 'Dog' | 'Cat',
                 breed,
                 birth_date: birthDate,
                 gender,
                 photo_url,
+                size: petToEdit?.size || 'Medium',
+                energy_level: petToEdit?.energy_level || 'Medium',
+                temperament: petToEdit?.temperament || [],
             };
 
             const { error: upsertError } = await supabase.from('pets').upsert(

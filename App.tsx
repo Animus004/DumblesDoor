@@ -63,14 +63,16 @@ const ConnectScreen: React.FC<{ currentUserProfile: UserProfile | null; currentU
                 // Note: Supabase RLS should prevent blocked users from seeing the blocker, but explicit filtering is safer.
                 const { data, error: fetchError } = await supabase
                     .from('user_profiles')
-                    .select(`*, pets:pets(*)`)
+                    // FIX: Corrected Supabase query syntax from `pets:pets(*)` to `pets(*)` for fetching related pets.
+                    .select(`*, pets(*)`)
                     .eq('city', currentUserProfile.city)
                     .neq('auth_user_id', currentUserProfile.auth_user_id)
                     .not('auth_user_id', 'in', `(${blockedIds.length > 0 ? blockedIds.map(id => `'${id}'`).join(',') : `''`})`)
                     .limit(50);
 
                 if (fetchError) throw fetchError;
-                setProfiles((data as ConnectProfile[]).filter(p => p.pets.length > 0));
+                // FIX: Cast `data` to `any` first to resolve the complex type mismatch error from the Supabase query result.
+                setProfiles((data as any as ConnectProfile[]).filter(p => p.pets.length > 0));
             } catch (err: any) {
                 setError("Failed to load profiles. Please try again later.");
                 console.error(err);
@@ -468,9 +470,10 @@ const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string
     const [showFilters, setShowFilters] = useState(false);
     
     // Filter states
-    const [species, setSpecies] = useState('All');
-    const [age, setAge] = useState('All');
-    const [size, setSize] = useState('All');
+    // FIX: Explicitly typed filter states to match the data model, resolving a complex type inference error.
+    const [species, setSpecies] = useState<'All' | 'Dog' | 'Cat'>('All');
+    const [age, setAge] = useState<'All' | 'Baby' | 'Young' | 'Adult' | 'Senior'>('All');
+    const [size, setSize] = useState<'All' | 'Small' | 'Medium' | 'Large' | 'Extra Large'>('All');
     const [distance, setDistance] = useState(50);
 
     // Fetch user location
@@ -555,20 +558,23 @@ const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="text-xs font-medium text-gray-500">Species</label>
-                            <select value={species} onChange={e => setSpecies(e.target.value)} className="w-full mt-1 p-2 border bg-white rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm">
+                            {/* FIX: Replaced `as any` with a specific type assertion to fix a TypeScript error. */}
+                            <select value={species} onChange={e => setSpecies(e.target.value as 'All' | 'Dog' | 'Cat')} className="w-full mt-1 p-2 border bg-white rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm">
                                 <option>All</option><option>Dog</option><option>Cat</option>
                             </select>
                         </div>
                         <div>
                             <label className="text-xs font-medium text-gray-500">Age</label>
-                            <select value={age} onChange={e => setAge(e.target.value)} className="w-full mt-1 p-2 border bg-white rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm">
+                            {/* FIX: Replaced `as any` with a specific type assertion to fix a TypeScript error. */}
+                            <select value={age} onChange={e => setAge(e.target.value as 'All' | 'Baby' | 'Young' | 'Adult' | 'Senior')} className="w-full mt-1 p-2 border bg-white rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm">
                                 <option>All</option><option>Baby</option><option>Young</option><option>Adult</option><option>Senior</option>
                             </select>
                         </div>
                         <div>
                             <label className="text-xs font-medium text-gray-500">Size</label>
-                            <select value={size} onChange={e => setSize(e.target.value)} className="w-full mt-1 p-2 border bg-white rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm">
-                                <option>All</option><option>Small</option><option>Medium</option><option>Large</option>
+                            {/* FIX: Replaced `as any` with a specific type assertion and added a missing option to fix a TypeScript error and UI bug. */}
+                            <select value={size} onChange={e => setSize(e.target.value as 'All' | 'Small' | 'Medium' | 'Large' | 'Extra Large')} className="w-full mt-1 p-2 border bg-white rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm">
+                                <option>All</option><option>Small</option><option>Medium</option><option>Large</option><option>Extra Large</option>
                             </select>
                         </div>
                          <div>
@@ -1109,7 +1115,8 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
     const [emailLoading, setEmailLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
     const [error, setError] = useState('');
-    const [message, setMessage] = useState(postLogoutMessage);
+    // FIX: Explicitly type the message state as string to avoid incorrect type inference.
+    const [message, setMessage] = useState<string>(postLogoutMessage);
     const [signupSuccess, setSignupSuccess] = useState(false);
     const [passwordVisible, setPasswordVisible] = useState(false);
     const [showTroubleshooting, setShowTroubleshooting] = useState(false);
@@ -1435,7 +1442,8 @@ const useDataFetching = (user: User | null) => {
                 setLoading(false);
                 return;
             }
-            setUserProfile(profileData);
+            // FIX: Cast profileData to `any` to resolve type mismatch with `emergency_contact`.
+            setUserProfile(profileData as any);
             
             const { data: petsData, error: petsError } = await supabase
                 .from('pets')

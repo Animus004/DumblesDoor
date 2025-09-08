@@ -58,7 +58,8 @@ const AppointmentDetailModal: React.FC<{ appointment: Appointment; onClose: () =
     const vetNotesHtml = useMemo(() => {
         if (!isUpcoming && appointment.vet_notes) {
             // In a real app, sanitize this output with a library like DOMPurify
-            return { __html: marked.parse(appointment.vet_notes) };
+            // FIX: Cast result of marked.parse to string to satisfy dangerouslySetInnerHTML type.
+            return { __html: marked.parse(appointment.vet_notes) as string };
         }
         return { __html: '' };
     }, [isUpcoming, appointment.vet_notes]);
@@ -150,7 +151,7 @@ const MyAppointmentsScreen: React.FC<MyAppointmentsScreenProps> = ({ onBack }) =
 
             const { data, error: fetchError } = await supabase
                 .from('appointments')
-                .select(`*, vet:vets(name, address, photo_url), pet:pets(name, photo_url), service:vet_services(name, price)`)
+                .select(`*, vet:professional_profiles(name, address, photo_url), pet:pets(name, photo_url), service:vet_services(name, price)`)
                 .eq('auth_user_id', user.id)
                 .order('appointment_time', { ascending: false });
 

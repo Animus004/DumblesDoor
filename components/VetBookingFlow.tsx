@@ -1,18 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 import type { User } from '@supabase/supabase-js';
-import type { NearbyVet, Vet, VetService, VetReview, Pet, Appointment } from '../types';
+import type { NearbyVet, Vet, VetService, Pet, Appointment } from '../types';
 
-// --- MOCK DATA (Replace with actual Supabase calls) ---
-const MOCK_NEARBY_VETS: NearbyVet[] = [
-    { id: '1', name: 'Dr. Priya Sharma\'s Pet Clinic', photo_url: 'https://i.ibb.co/hZJc3Bw/vet-1.jpg', specialization: ['General Practice', 'Dermatology'], address: '123, Koramangala, Bangalore', city: 'Bangalore', phone: '9876543210', email: 'priya.sharma@vet.com', bio: 'A compassionate veterinarian with over 10 years of experience dedicated to the health and well-being of small animals in Bangalore.\n\n**Qualifications & Experience**\n- MVSc (Veterinary Medicine), Bangalore Veterinary College\n- Advanced Certification in Dermatology\n- Senior Veterinarian at a leading animal hospital (5 years)\n\n**Affiliations**\n- Member of the Indian Veterinary Association (IVA)\n- Registered with the Karnataka Veterinary Council', rating: 4.8, review_count: 125, verified: true, distance_km: 2.5, is_24_7: false, accepted_insurance: ['PetAssure', 'Bajaj Allianz'], photo_gallery: ['https://i.ibb.co/hZJc3Bw/vet-1.jpg', 'https://i.ibb.co/1M2g1CH/clinic-1.jpg', 'https://i.ibb.co/k1nSg2V/clinic-2.jpg'], services: [{id: 's1', name: 'General Consultation', description: 'A thorough check-up for your pet.', price: 800, duration_minutes: 30}, {id: 's2', name: 'Vaccination', description: 'Includes all essential annual shots.', price: 1500, duration_minutes: 20}], 
-reviews: [{id: 'r1', vet_id: '1', author_user_id: 'user_ankit_g', author_name: 'Ankit G.', rating: 5, comment: 'Dr. Priya is amazing with my dog, Leo. Very patient and explains everything clearly.', created_at: '2024-07-10T10:00:00Z', verified_appointment: true}, {id: 'r4', vet_id: '1', author_user_id: 'user_priya_k', author_name: 'Priya K.', rating: 4, comment: 'Good service, but the wait time was a bit long.', created_at: '2024-06-15T12:00:00Z', verified_appointment: false}] },
-    { id: '2', name: 'Happy Paws Veterinary Hospital', photo_url: 'https://i.ibb.co/51f0qY0/vet-2.jpg', specialization: ['Surgery', 'Orthopedics', 'Emergency'], address: '456, Indiranagar, Bangalore', city: 'Bangalore', phone: '9876543211', email: 'contact@happypawsvet.com', bio: 'State-of-the-art facility for all your pet\'s surgical and emergency needs. Our team is equipped with the latest technology including digital X-rays and in-house diagnostics.', rating: 4.9, review_count: 210, verified: true, distance_km: 4.1, is_24_7: true, accepted_insurance: ['PetAssure', 'Digit Insurance', 'New India Assurance'], photo_gallery: ['https://i.ibb.co/51f0qY0/vet-2.jpg', 'https://i.ibb.co/yQj7X7D/grooming-glove.jpg'], services: [{id: 's3', name: 'Surgical Consultation', description: 'Pre-op check-up and advice.', price: 1200, duration_minutes: 45}, {id: 's4', name: 'Dental Cleaning', description: 'Full dental scaling and polishing.', price: 2500, duration_minutes: 60}], 
-reviews: [{id: 'r2', vet_id: '2', author_user_id: 'user_sneha_p', author_name: 'Sneha P.', rating: 5, comment: 'We had an emergency late at night and the team at Happy Paws was incredible. Lifesavers!', created_at: '2024-06-22T23:30:00Z', verified_appointment: true}] },
-    { id: '3', name: 'The Cat Doctor', photo_url: 'https://i.ibb.co/sK6V1yF/vet-3.jpg', specialization: ['Feline Medicine'], address: '789, Jayanagar, Bangalore', city: 'Bangalore', phone: '9876543212', email: 'cat.doctor@vet.com', bio: 'A dedicated feline-only practice for a stress-free experience for your cat. We understand the unique needs of cats and provide a calm environment.', rating: 4.7, review_count: 95, verified: false, distance_km: 6.8, is_24_7: false, accepted_insurance: [], photo_gallery: ['https://i.ibb.co/sK6V1yF/vet-3.jpg'], services: [{id: 's1', name: 'General Consultation', description: 'A thorough check-up for your cat.', price: 900, duration_minutes: 30}], 
-reviews: [{id: 'r3', vet_id: '3', author_user_id: 'user_rohan_m', author_name: 'Rohan M.', rating: 4, comment: 'Good, cat-focused clinic. A bit pricey but worth it for a calmer experience.', created_at: '2024-07-01T14:00:00Z', verified_appointment: false}] },
-    { id: '4', name: 'Advanced Pet Care', photo_url: 'https://i.ibb.co/B4g9y2P/vet-4.jpg', specialization: ['General Practice', 'Exotic Pets'], address: '101, HSR Layout, Bangalore', city: 'Bangalore', phone: '9876543213', email: 'info@advancedpetcare.com', bio: 'Specializing in the care of exotic pets like birds and reptiles, alongside dogs and cats.', rating: 4.6, review_count: 78, verified: true, distance_km: 12.3, is_24_7: true, accepted_insurance: ['Bajaj Allianz'], photo_gallery: ['https://i.ibb.co/B4g9y2P/vet-4.jpg'], services: [{id: 's5', name: 'Exotic Pet Consultation', description: 'Specialized check-up for non-traditional pets.', price: 2000, duration_minutes: 40}], reviews: [] },
-];
 
 const QUICK_BOOK_SERVICES = [
     { name: 'Checkup', icon: '🩺', keyword: 'Consultation' },
@@ -48,17 +38,17 @@ const generateIcsLink = (appointment: Appointment): string => {
 
 const VetCard: React.FC<{ vet: NearbyVet; onSelect: () => void; isEmergency?: boolean; }> = ({ vet, onSelect, isEmergency = false }) => (
     <div className="w-full text-left bg-white rounded-xl shadow-md overflow-hidden flex items-start p-4 gap-4">
-        <img src={vet.photo_url} alt={vet.name} className="w-24 h-24 rounded-lg object-cover" />
+        <img src={vet.photo_url || 'https://i.ibb.co/hZJc3Bw/vet-1.jpg'} alt={vet.name} className="w-24 h-24 rounded-lg object-cover" />
         <div className="flex-grow">
             {vet.verified && <span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Verified</span>}
             <h3 className="font-bold text-lg mt-1">{vet.name}</h3>
-            <p className="text-sm text-gray-500 line-clamp-1">{vet.specialization.join(', ')}</p>
+            <p className="text-sm text-gray-500 line-clamp-1">{vet.specialization?.join(', ')}</p>
             <div className="flex items-center text-sm mt-1">
                 <span className="text-yellow-500">★</span>
-                <span className="font-semibold ml-1">{vet.rating}</span>
-                <span className="text-gray-400 ml-1">({vet.review_count} reviews)</span>
+                <span className="font-semibold ml-1">{vet.rating || 'N/A'}</span>
+                <span className="text-gray-400 ml-1">({vet.review_count || 0} reviews)</span>
             </div>
-            <p className="font-bold text-sm mt-2 text-teal-600">{vet.distance_km.toFixed(1)} km away</p>
+            {/* The distance text is now omitted as it's not available in the database */}
             <div className="flex gap-2 mt-3">
                 {isEmergency ? (
                     <a href={`tel:${vet.phone}`} className="w-full text-center bg-red-600 text-white font-bold py-2 rounded-lg text-sm">Call Now</a>
@@ -111,27 +101,40 @@ const TriageScreen = ({ onSelectPath }: { onSelectPath: (path: 'emergency' | 'ro
 };
 
 
-const VetSearchScreen = ({ onSelectVet, emergencyMode, onExitEmergencyMode }: { onSelectVet: (vet: NearbyVet) => void, emergencyMode: boolean, onExitEmergencyMode: () => void }) => {
-    const [allVets, setAllVets] = useState<NearbyVet[]>([]);
-    const [filteredVets, setFilteredVets] = useState<NearbyVet[]>([]);
+const VetSearchScreen = ({ onSelectVet, emergencyMode, onExitEmergencyMode }: { onSelectVet: (vet: Vet) => void, emergencyMode: boolean, onExitEmergencyMode: () => void }) => {
+    const [allVets, setAllVets] = useState<Vet[]>([]);
+    const [filteredVets, setFilteredVets] = useState<Vet[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [quickFilter, setQuickFilter] = useState<string | null>(null);
 
     useEffect(() => {
-        const fetchVets = async () => {
+        const getApprovedVets = async () => {
+            if (!supabase) {
+                setError("Database connection is not available.");
+                setLoading(false);
+                return;
+            }
             setLoading(true);
             setError('');
             try {
-                await new Promise(resolve => setTimeout(resolve, 500));
-                setAllVets(MOCK_NEARBY_VETS);
+                const { data, error: queryError } = await supabase
+                    .from('professional_profiles')
+                    .select('*, services:vet_services(*)')
+                    .eq('profile_type', 'veterinarian')
+                    .eq('status', 'approved');
+
+                if (queryError) throw queryError;
+                
+                setAllVets((data as Vet[]) || []);
             } catch (err: any) {
                 setError('Could not fetch vets. Please try again later.');
+                console.error("Error fetching vets:", err);
             } finally {
                 setLoading(false);
             }
         };
-        fetchVets();
+        getApprovedVets();
     }, []);
 
     useEffect(() => {
@@ -139,7 +142,7 @@ const VetSearchScreen = ({ onSelectVet, emergencyMode, onExitEmergencyMode }: { 
             let result = allVets;
 
             if (emergencyMode) {
-                result = allVets.filter(v => v.is_24_7).sort((a, b) => a.distance_km - b.distance_km);
+                result = allVets.filter(v => v.is_24_7);
             } else if (quickFilter) {
                 result = result.filter(v => v.services?.some(s => s.name.toLowerCase().includes(quickFilter.toLowerCase())));
             }
@@ -157,7 +160,7 @@ const VetSearchScreen = ({ onSelectVet, emergencyMode, onExitEmergencyMode }: { 
         <div className="p-4 space-y-4">
             {emergencyMode ? (
                 <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded-r-lg">
-                    <p className="text-red-800 font-bold">Showing 24/7 emergency vets nearest to you.</p>
+                    <p className="text-red-800 font-bold">Showing 24/7 emergency vets.</p>
                     <button onClick={onExitEmergencyMode} className="text-sm font-semibold text-red-600 mt-1">Exit Emergency Mode</button>
                 </div>
             ) : (
@@ -176,8 +179,13 @@ const VetSearchScreen = ({ onSelectVet, emergencyMode, onExitEmergencyMode }: { 
                 </>
             )}
 
-            {error && <p className="text-red-500">{error}</p>}
-            {!loading && filteredVets.length === 0 && <p className="text-center text-gray-500 pt-8">No vets found matching your criteria.</p>}
+            {error && <p className="text-red-500 bg-red-50 text-center p-3 rounded-md">{error}</p>}
+            {!loading && filteredVets.length === 0 && 
+                <div className="text-center text-gray-500 pt-8">
+                    <p className="font-semibold">No Approved Vets Found</p>
+                    <p>We are currently onboarding professionals in your area. Please check back soon!</p>
+                </div>
+            }
             <div className="space-y-4">
                 {filteredVets.map(vet => (
                      <VetCard key={vet.id} vet={vet} onSelect={() => onSelectVet(vet)} isEmergency={emergencyMode} />
@@ -203,9 +211,11 @@ const VetProfileScreen = ({ vet, onBookNow }: { vet: Vet, onBookNow: (vet: Vet) 
          <div className="bg-gray-50">
             <main className="pb-24">
                 <div className="w-full h-48 bg-gray-200 overflow-x-auto flex snap-x snap-mandatory">
-                    {Array.isArray(vet.photo_gallery) && vet.photo_gallery.map((url, index) => (
+                    {Array.isArray(vet.photo_gallery) && vet.photo_gallery.length > 0 ? vet.photo_gallery.map((url, index) => (
                         <img key={index} src={url} alt={`Clinic photo ${index + 1}`} className="w-full h-full object-cover flex-shrink-0 snap-center" />
-                    ))}
+                    )) : (
+                        <img src={vet.photo_url || 'https://i.ibb.co/1M2g1CH/clinic-1.jpg'} alt={vet.name} className="w-full h-full object-cover flex-shrink-0 snap-center" />
+                    )}
                 </div>
                 <div className="p-4 -mt-12">
                     <div className="bg-white p-4 rounded-xl shadow-lg relative">
@@ -214,7 +224,7 @@ const VetProfileScreen = ({ vet, onBookNow }: { vet: Vet, onBookNow: (vet: Vet) 
                             {vet.is_24_7 && <div className="flex items-center gap-1 bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-semibold">24/7</div>}
                         </div>
                         <h2 className="text-2xl font-bold mt-2">{vet.name}</h2>
-                        <p className="text-gray-500">{vet.specialization.join(', ')}</p>
+                        <p className="text-gray-500">{vet.specialization?.join(', ')}</p>
                          <div className="mt-3 grid grid-cols-2 gap-2">
                              <a href={`tel:${vet.phone}`} className="w-full text-center bg-teal-500 text-white font-bold py-2 rounded-lg text-sm">Call Clinic</a>
                              <a href={`https://maps.google.com/?q=${encodeURIComponent(vet.address)}`} target="_blank" rel="noopener noreferrer" className="w-full text-center bg-gray-200 text-gray-800 font-bold py-2 rounded-lg text-sm">Get Directions</a>
@@ -340,25 +350,49 @@ const BookingScreen: React.FC<{ vet: Vet; pets: Pet[]; user: User; onBookingConf
     }, [selectedService, selectedDate]);
     
     const handleConfirm = async () => {
-        if (!selectedPet || !selectedService || !selectedDate || !selectedTime) return;
+        if (!selectedPet || !selectedService || !selectedDate || !selectedTime || !supabase) {
+            setError("Missing required information or database connection.");
+            return;
+        }
         setIsProcessing(true);
         setError('');
-        
-        await new Promise(res => setTimeout(res, 1500));
         
         const appointmentTime = new Date(selectedDate);
         const [hours, minutes] = selectedTime.split(':').map(Number);
         appointmentTime.setHours(hours, minutes, 0, 0);
 
-        const newAppointment: Appointment = {
-            id: `apt_${Date.now()}`, pet_id: selectedPet.id, vet_id: vet.id, auth_user_id: user.id, service_id: selectedService.id,
-            appointment_time: appointmentTime.toISOString(), duration_minutes: selectedService.duration_minutes,
-            status: 'confirmed', notes: notes, created_at: new Date().toISOString(),
-            vet: { name: vet.name, address: vet.address, photo_url: vet.photo_url },
-            pet: { name: selectedPet.name, photo_url: selectedPet.photo_url },
-            service: { name: selectedService.name, price: selectedService.price },
+        const appointmentToInsert = {
+            pet_id: selectedPet.id,
+            vet_id: vet.id,
+            auth_user_id: user.id,
+            service_id: selectedService.id,
+            appointment_time: appointmentTime.toISOString(),
+            duration_minutes: selectedService.duration_minutes,
+            status: 'confirmed' as const,
+            notes: notes,
         };
-        onBookingConfirmed(newAppointment);
+        
+        try {
+            const { data, error: insertError } = await supabase
+                .from('appointments')
+                .insert(appointmentToInsert)
+                .select()
+                .single();
+
+            if (insertError) throw insertError;
+
+            const newAppointment: Appointment = {
+                ...(data as Appointment),
+                vet: { name: vet.name, address: vet.address, photo_url: vet.photo_url },
+                pet: { name: selectedPet.name, photo_url: selectedPet.photo_url },
+                service: { name: selectedService.name, price: selectedService.price },
+            };
+            onBookingConfirmed(newAppointment);
+
+        } catch (err: any) {
+            setError(`Failed to book appointment: ${err.message}`);
+            setIsProcessing(false);
+        }
     };
 
     if (isProcessing) return <div className="p-8 text-center"><div className="w-12 h-12 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div><p className="mt-4 font-semibold text-gray-700">Securing your spot...</p></div>;
@@ -379,7 +413,9 @@ const BookingScreen: React.FC<{ vet: Vet; pets: Pet[]; user: User; onBookingConf
                     <div>
                         <h3 className="font-bold text-lg mb-2">2. Choose a service</h3>
                         <div className="space-y-2">
-                            {vet.services?.map(s => <button key={s.id} onClick={() => setSelectedService(s)} className={`w-full text-left p-3 rounded-lg border-2 ${selectedService?.id === s.id ? 'border-teal-500 bg-teal-50' : 'bg-white'}`}><div className="flex justify-between items-center"><div><p className="font-semibold">{s.name}</p><p className="text-sm text-gray-500">{s.duration_minutes} min</p></div><p className="font-bold text-teal-600">₹{s.price}</p></div></button>)}
+                            {vet.services && vet.services.length > 0 ? vet.services.map(s => <button key={s.id} onClick={() => setSelectedService(s)} className={`w-full text-left p-3 rounded-lg border-2 ${selectedService?.id === s.id ? 'border-teal-500 bg-teal-50' : 'bg-white'}`}><div className="flex justify-between items-center"><div><p className="font-semibold">{s.name}</p><p className="text-sm text-gray-500">{s.duration_minutes} min</p></div><p className="font-bold text-teal-600">₹{s.price}</p></div></button>)
+                            : <p className="text-sm text-gray-500 bg-gray-100 p-3 rounded-md">This veterinarian has not listed any specific services yet. You can book a 'General Consultation'.</p>
+                            }
                         </div>
                     </div>
                     <button onClick={() => setStep(2)} disabled={!selectedPet || !selectedService} className="w-full bg-teal-500 text-white font-bold py-3 rounded-lg disabled:opacity-50 mt-4">Next: Choose Date & Time</button>

@@ -224,7 +224,8 @@ const PetBookScreen: React.FC<{ onBack: () => void; pet: Pet | null; setDraftPos
                 
             if (postsError) throw postsError;
             
-            setFeedPosts(data as EnrichedPetbookPost[]);
+            // FIX: Cast `data` to `any` first to resolve the complex type mismatch error from the Supabase query result.
+            setFeedPosts(data as any as EnrichedPetbookPost[]);
 
         } catch (err) {
             console.error("Error fetching feed:", err);

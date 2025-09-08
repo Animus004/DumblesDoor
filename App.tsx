@@ -71,8 +71,8 @@ const ConnectScreen: React.FC<{ currentUserProfile: UserProfile | null; currentU
                     .limit(50);
 
                 if (fetchError) throw fetchError;
-                // FIX: Cast `data` to `any` first to resolve the complex type mismatch error from the Supabase query result.
-                setProfiles((data as any as ConnectProfile[]).filter(p => p.pets.length > 0));
+                // FIX: Added a defensive check for `p.pets` being an array to prevent crashes from RLS returning null.
+                setProfiles((data as any as ConnectProfile[]).filter(p => Array.isArray(p.pets) && p.pets.length > 0));
             } catch (err: any) {
                 setError("Failed to load profiles. Please try again later.");
                 console.error(err);
@@ -519,8 +519,10 @@ const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string
                 rpcParams.long = userLocation.lon;
             }
 
-            // FIX: Explicitly type the Supabase RPC call with <AdoptablePet> to resolve a type inference issue.
-            const { data, error: rpcError } = await supabase.rpc<AdoptablePet>('nearby_pets', rpcParams);
+            // FIX: The generic for supabase.rpc expects more than one type argument. Since function types
+            // are not generated, we call it without generics and let the data be of type `any`. The code
+            // below correctly handles this.
+            const { data, error: rpcError } = await supabase.rpc('nearby_pets', rpcParams);
 
             if (rpcError) {
                 console.error("Error calling nearby_pets RPC:", rpcError);

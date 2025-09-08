@@ -39,9 +39,9 @@ const OnboardingProfileScreen: React.FC<OnboardingProfileScreenProps> = ({ user,
 
     const { error: upsertError } = await supabase.from('user_profiles').upsert({
       auth_user_id: user.id,
-      email: user.email,
+      email: user.email!,
       name,
-      phone,
+      phone: phone || null,
       city,
     });
 

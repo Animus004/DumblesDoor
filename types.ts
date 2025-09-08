@@ -11,10 +11,10 @@ export interface UserProfile {
   email: string;
   phone: string | null;
   city: string;
-  role?: 'user' | 'admin';
-  interests?: string[]; // e.g., ["Dog parks", "Hiking", "Puppy training"]
-  verified?: boolean;
-  emergency_contact?: { name: string; phone: string; };
+  role: 'user' | 'admin';
+  interests: string[] | null;
+  verified: boolean;
+  emergency_contact: { name: string; phone: string; } | null;
 }
 
 export interface Pet {

@@ -526,7 +526,9 @@ const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string
                 setError("Could not fetch nearby pets. Please try again later.");
                 setListings([]);
             } else {
-                const filtered = (data || []).filter((p: AdoptablePet) => {
+                // FIX: Explicitly type the result of the RPC call to avoid potential type inference issues with `any[]`.
+                const petsFromRpc: AdoptablePet[] = data || [];
+                const filtered = petsFromRpc.filter((p) => {
                     const speciesMatch = species === 'All' || p.species === species;
                     const ageMatch = age === 'All' || p.age === age;
                     const sizeMatch = size === 'All' || p.size === size;

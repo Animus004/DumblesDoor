@@ -419,13 +419,6 @@ const AdminDashboardScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
 
 // --- ADOPTION SCREEN IMPLEMENTATION ---
-const MOCK_ADOPTION_LISTINGS: AdoptionListing[] = [
-  { id: '1', name: 'Buddy', species: 'Dog', breed: 'Indie', age: 'Young', size: 'Medium', gender: 'Male', photos: ['https://i.ibb.co/6rC6hJq/indie-dog-1.jpg'], description: 'A friendly and energetic indie dog looking for a loving home. Loves to play fetch!', good_with: ['Children', 'Dogs'], shelter_id: '1', status: 'Available', created_at: new Date().toISOString(), shelter: { id: '1', name: 'Hope for Paws', city: 'Mumbai', address: '', phone: '', email: '', verified: true, location: {} } },
-  { id: '2', name: 'Luna', species: 'Cat', breed: 'Bombay Cat', age: 'Adult', size: 'Small', gender: 'Female', photos: ['https://i.ibb.co/zntgK4B/bombay-cat-1.jpg'], description: 'A calm and affectionate cat who loves to cuddle. She is litter trained and very clean.', good_with: ['Cats'], shelter_id: '2', status: 'Available', created_at: new Date().toISOString(), shelter: { id: '2', name: 'Cat Haven', city: 'Delhi', address: '', phone: '', email: '', verified: true, location: {} } },
-  { id: '3', name: 'Rocky', species: 'Dog', breed: 'Labrador Retriever', age: 'Baby', size: 'Medium', gender: 'Male', photos: ['https://i.ibb.co/mH4SMN3/lab-puppy-1.jpg'], description: 'An adorable Labrador puppy full of curiosity and playfulness. Needs a family that can keep up with his energy.', good_with: ['Children', 'Dogs', 'Cats'], shelter_id: '1', status: 'Available', created_at: new Date().toISOString(), shelter: { id: '1', name: 'Hope for Paws', city: 'Mumbai', address: '', phone: '', email: '', verified: true, location: {} } },
-  { id: '4', name: 'Misty', species: 'Cat', breed: 'Indian Billie', age: 'Young', size: 'Medium', gender: 'Female', photos: ['https://i.ibb.co/Dtd5zWf/indian-cat-1.jpg'], description: 'A beautiful street cat who was rescued. She is a bit shy at first but very sweet once she trusts you.', good_with: [], shelter_id: '3', status: 'Available', created_at: new Date().toISOString(), shelter: { id: '3', name: 'Second Chance Animals', city: 'Bangalore', address: '', phone: '', email: '', verified: true, location: {} } },
-];
-
 const PetAdoptionCard: React.FC<{ pet: AdoptablePet }> = ({ pet }) => {
     const [isFavorited, setIsFavorited] = useState(false);
     return (
@@ -456,95 +449,105 @@ const PetAdoptionCard: React.FC<{ pet: AdoptablePet }> = ({ pet }) => {
             </div>
             <div className="p-4 border-t border-gray-100 flex justify-between items-center text-sm">
                 <p className="font-semibold text-gray-700">{pet.shelter_name}</p>
-                {pet.distance_km && <p className="text-teal-600 font-bold">{pet.distance_km.toFixed(1)} km away</p>}
+                {pet.distance_km > 0 && <p className="text-teal-600 font-bold">{pet.distance_km.toFixed(1)} km away</p>}
             </div>
         </div>
     );
 };
 
-// FIX: Changed onSelectPet prop to accept `string | null` to match the state setter it's assigned to.
 const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string | null) => void; }> = ({ onBack, onSelectPet }) => {
     const [listings, setListings] = useState<AdoptablePet[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMessage, setLoadingMessage] = useState("Finding your location...");
     const [error, setError] = useState<string | null>(null);
     const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
+    const [locationResolved, setLocationResolved] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     
-    // Filter states
-    // FIX: Explicitly typed filter states to match the data model, resolving a complex type inference error.
     const [species, setSpecies] = useState<'All' | 'Dog' | 'Cat'>('All');
     const [age, setAge] = useState<'All' | 'Baby' | 'Young' | 'Adult' | 'Senior'>('All');
-    // FIX: Added 'Extra Large' to the size state type to match the `AdoptionListing` type and resolve the comparison error.
     const [size, setSize] = useState<'All' | 'Small' | 'Medium' | 'Large' | 'Extra Large'>('All');
     const [distance, setDistance] = useState(50);
 
-    // Fetch user location
     useEffect(() => {
+        if (locationResolved) return;
+        setLoading(true);
+        setLoadingMessage("Finding your location...");
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                setUserLocation({
-                    lat: position.coords.latitude,
-                    lon: position.coords.longitude
-                });
+                setUserLocation({ lat: position.coords.latitude, lon: position.coords.longitude });
+                setLocationResolved(true);
             },
             (geoError) => {
                 console.warn("Geolocation error:", geoError.message);
-                setError("Could not get your location. Please enable location services to find nearby pets. Showing sample data for now.");
-                const mockAdoptablePets: AdoptablePet[] = MOCK_ADOPTION_LISTINGS.map(p => ({
-                    ...p,
-                    distance_km: Math.random() * 50,
-                    shelter_name: p.shelter?.name || 'A Loving Shelter'
-                }));
-                setListings(mockAdoptablePets);
-                setLoading(false);
-            }
+                setError("Location access denied. Showing pets from all over India. Enable location for local results.");
+                setUserLocation(null);
+                setLocationResolved(true);
+            },
+            { timeout: 10000 }
         );
-    }, []);
+    }, [locationResolved]);
 
-    // Fetch data from Supabase
     useEffect(() => {
+        if (!locationResolved) return;
+
         const fetchListings = async () => {
-            if (!userLocation && MOCK_ADOPTION_LISTINGS.length > 0) return; // Don't refetch if using mock data
             if (!supabase) {
-                 setError("Database connection is not available.");
-                 setLoading(false);
-                 return;
+                setError("Database connection is not available.");
+                setLoading(false);
+                return;
             }
 
             setLoading(true);
-            setError(null);
-            
-            const rpcParams: any = { radius_km: distance };
-            if (userLocation) {
-                rpcParams.lat = userLocation.lat;
-                rpcParams.long = userLocation.lon;
+            setLoadingMessage("Fetching pets...");
+            if (!error?.includes("Location access denied")) {
+                setError(null);
             }
+            
+            let fetchedPets: AdoptablePet[] = [];
 
-            // Since the 'nearby_pets' function is not in the generated types, we cast it to 'any'.
-            // This means the returned 'data' is also 'any', so we must cast it to the correct type.
-            const { data, error: rpcError } = await supabase.rpc('nearby_pets', rpcParams);
+            try {
+                if (userLocation) {
+                    const { data, error: rpcError } = await supabase.rpc('nearby_pets', {
+                        lat: userLocation.lat,
+                        long: userLocation.lon,
+                        radius_km: distance
+                    });
+                    if (rpcError) throw rpcError;
+                    fetchedPets = (data as AdoptablePet[]) || [];
+                } else {
+                    const { data, error: queryError } = await supabase
+                        .from('adoption_listings')
+                        .select('*, shelter:shelters(name, city)')
+                        .eq('status', 'Available')
+                        .limit(50);
+                    if (queryError) throw queryError;
+                    fetchedPets = (data as AdoptionListing[]).map(p => ({
+                        ...(p as Omit<AdoptionListing, 'shelter'>),
+                        distance_km: 0,
+                        shelter_name: (p.shelter as any)?.name || 'A Loving Shelter',
+                    }));
+                }
 
-            if (rpcError) {
-                console.error("Error calling nearby_pets RPC:", rpcError);
-                setError("Could not fetch nearby pets. Please try again later.");
-                setListings([]);
-            } else {
-                // We cast the 'any' data to our expected `AdoptablePet[]` type.
-                // If the RPC returns nothing, we default to an empty array.
-                const petsFromRpc: AdoptablePet[] = (data as AdoptablePet[]) || [];
-                const filtered = petsFromRpc.filter((p) => {
+                const filtered = fetchedPets.filter((p) => {
                     const speciesMatch = species === 'All' || p.species === species;
                     const ageMatch = age === 'All' || p.age === age;
                     const sizeMatch = size === 'All' || p.size === size;
                     return speciesMatch && ageMatch && sizeMatch;
                 });
                 setListings(filtered);
+
+            } catch (err: any) {
+                console.error("Error fetching pets:", err.message);
+                setError("Could not fetch pets. Please try again later.");
+                setListings([]);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         };
         
         fetchListings();
-    }, [userLocation, species, age, size, distance]);
+    }, [locationResolved, userLocation, species, age, size, distance]);
 
     return (
         <div className="min-h-screen flex flex-col bg-gray-50">
@@ -565,35 +568,32 @@ const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="text-xs font-medium text-gray-500">Species</label>
-                            {/* FIX: Replaced `as any` with a specific type assertion to fix a TypeScript error. */}
                             <select value={species} onChange={e => setSpecies(e.target.value as 'All' | 'Dog' | 'Cat')} className="w-full mt-1 p-2 border bg-white rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm">
                                 <option>All</option><option>Dog</option><option>Cat</option>
                             </select>
                         </div>
                         <div>
                             <label className="text-xs font-medium text-gray-500">Age</label>
-                            {/* FIX: Replaced `as any` with a specific type assertion to fix a TypeScript error. */}
                             <select value={age} onChange={e => setAge(e.target.value as 'All' | 'Baby' | 'Young' | 'Adult' | 'Senior')} className="w-full mt-1 p-2 border bg-white rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm">
                                 <option>All</option><option>Baby</option><option>Young</option><option>Adult</option><option>Senior</option>
                             </select>
                         </div>
                         <div>
                             <label className="text-xs font-medium text-gray-500">Size</label>
-                            {/* FIX: Replaced `as any` with a specific type assertion and added a missing option to fix a TypeScript error and UI bug. */}
                             <select value={size} onChange={e => setSize(e.target.value as 'All' | 'Small' | 'Medium' | 'Large' | 'Extra Large')} className="w-full mt-1 p-2 border bg-white rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm">
                                 <option>All</option><option>Small</option><option>Medium</option><option>Large</option><option>Extra Large</option>
                             </select>
                         </div>
                          <div>
                             <label className="text-xs font-medium text-gray-500">Distance ({distance} km)</label>
-                            <input type="range" min="5" max="200" step="5" value={distance} onChange={e => setDistance(Number(e.target.value))} className="w-full mt-2 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500" />
+                            <input type="range" min="5" max="200" step="5" value={distance} onChange={e => setDistance(Number(e.target.value))} className="w-full mt-2 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500" disabled={!userLocation} />
                         </div>
                     </div>
                 </div>
             )}
 
             <main className="flex-grow p-4">
-                {loading && <div className="text-center p-8"><div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div><p className="mt-2 text-gray-600">Finding pets near you...</p></div>}
+                {loading && <div className="text-center p-8"><div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div><p className="mt-2 text-gray-600">{loadingMessage}</p></div>}
                 {error && <div className="bg-yellow-50 text-yellow-700 p-4 rounded-lg text-center">{error}</div>}
                 
                 {!loading && !error && listings.length === 0 && (
@@ -1672,7 +1672,8 @@ const App: React.FC = () => {
     // --- EFFECTS ---
     // Effect for one-time setup: checking env vars and setting up auth listener
     useEffect(() => {
-        const requiredVars = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'VITE_API_KEY'];
+        // FIX: Removed VITE_API_KEY from required env vars check per guidelines.
+        const requiredVars = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
         const missing = requiredVars.filter(v => !import.meta.env[v]);
         setMissingEnvVars(missing);
         

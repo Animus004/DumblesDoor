@@ -2,8 +2,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { HealthCheckResult, GeminiChatMessage } from '../types';
 import type { Chat } from "@google/genai";
 
-const apiKey = import.meta.env.VITE_API_KEY;
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+// FIX: Per coding guidelines, initialize GoogleGenAI with process.env.API_KEY and assume it is available.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 let chat: Chat | null = null;
 
 const fileToGenerativePart = (base64Data: string, mimeType: string) => {
@@ -21,9 +21,6 @@ export const analyzePetHealth = async (
   notes: string,
   petContext: { name: string; breed: string; age: string; }
 ): Promise<HealthCheckResult> => {
-  if (!ai) {
-    throw new Error("Gemini AI client is not initialized. Check VITE_API_KEY.");
-  }
   try {
     const imagePart = fileToGenerativePart(imageBase64, imageMimeType);
     const textPart = {
@@ -193,9 +190,6 @@ Your response MUST be a single, valid JSON object that strictly adheres to the p
 };
 
 export const suggestPostHashtags = async (postContent: string): Promise<string[]> => {
-    if (!ai) {
-        throw new Error("Gemini AI client is not initialized.");
-    }
     if (!postContent.trim()) {
         return [];
     }
@@ -233,9 +227,6 @@ export const suggestPostHashtags = async (postContent: string): Promise<string[]
 
 
 export const getChatStream = async function* (history: GeminiChatMessage[], newMessage: string) {
-    if (!ai) {
-      throw new Error("Gemini AI client is not initialized. Check VITE_API_KEY.");
-    }
     if (!chat) {
         chat = ai.chats.create({
             model: 'gemini-2.5-flash',

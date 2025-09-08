@@ -1121,7 +1121,9 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
     const [password, setPassword] = useState('');
     const [emailLoading, setEmailLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
-    const [error, setError] = useState('');
+    // FIX: Explicitly type `error` state as string to avoid potential type inference issues where a constant
+    // empty string `''` could be inferred too narrowly, causing assignment errors with other strings.
+    const [error, setError] = useState<string>('');
     // FIX: Explicitly type the message state as string to avoid incorrect type inference.
     const [message, setMessage] = useState<string>(postLogoutMessage);
     const [signupSuccess, setSignupSuccess] = useState(false);

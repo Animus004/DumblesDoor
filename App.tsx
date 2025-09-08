@@ -508,8 +508,9 @@ const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string
 
             try {
                 if (userLocation) {
-                    // FIX: Cast the RPC function name to 'any' to bypass strict type checking, as 'nearby_pets' is not in the generated database types. This resolves the "Argument of type 'string' is not assignable to parameter of type 'never'" error.
-                    const { data, error: rpcError } = await supabase.rpc('nearby_pets' as any, {
+                    // FIX: Use @ts-ignore to bypass a TypeScript error for the 'nearby_pets' RPC function, which is not included in the auto-generated Supabase types. This allows the function to be called without type-checking errors.
+                    // @ts-ignore
+                    const { data, error: rpcError } = await supabase.rpc('nearby_pets', {
                         lat: userLocation.lat,
                         long: userLocation.lon,
                         radius_km: distance

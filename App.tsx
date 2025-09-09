@@ -1,4 +1,5 @@
 
+
 // Trigger Vercel deployment
 // FIX: Imported useState, useEffect, and useRef from React to resolve hook-related errors.
 import React, { useState, useEffect, useRef } from 'react';
@@ -25,6 +26,24 @@ import SafetyCenterScreen from './components/SafetyCenterScreen';
 import DataPrivacyScreen from './components/DataPrivacyScreen';
 import VetBookingFlow from './components/VetBookingFlow';
 import MyAppointmentsScreen from './components/MyAppointmentsScreen';
+
+// --- UTILITY FUNCTIONS ---
+const calculatePetAge = (birthDate: string): string => {
+    if (!birthDate) return 'Unknown';
+    const dob = new Date(birthDate);
+    const now = new Date();
+    let years = now.getFullYear() - dob.getFullYear();
+    let months = now.getMonth() - dob.getMonth();
+    if (months < 0 || (months === 0 && now.getDate() < dob.getDate())) {
+        years--;
+        months += 12;
+    }
+    if (years === 0 && months === 0) return 'Less than a month old';
+    const yearStr = years > 0 ? `${years} year${years > 1 ? 's' : ''}` : '';
+    const monthStr = months > 0 ? `${months} month${months > 1 ? 's' : ''}` : '';
+    return [yearStr, monthStr].filter(Boolean).join(' and ');
+};
+
 
 // --- CONNECT SCREEN IMPLEMENTATION ---
 const ConnectScreen: React.FC<{ currentUserProfile: UserProfile | null; currentUser: User | null; }> = ({ currentUserProfile, currentUser }) => {
@@ -519,12 +538,13 @@ const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string
                     if (rpcError) throw rpcError;
                     fetchedPets = (data as AdoptablePet[]) || [];
                 } else {
-                    const { data, error: queryError } = await supabase
+                    // FIX: Corrected the destructuring of the supabase response to correctly define `data` and `error` variables.
+                    const { data, error } = await supabase
                         .from('adoption_listings')
                         .select('*, shelter:shelters(name, city)')
                         .eq('status', 'Available')
                         .limit(50);
-                    if (queryError) throw queryError;
+                    if (error) throw error;
                     fetchedPets = (data as AdoptionListing[]).map(p => ({
                         ...(p as Omit<AdoptionListing, 'shelter'>),
                         distance_km: 0,
@@ -1735,7 +1755,7 @@ const App: React.FC = () => {
                 const petContext = {
                     name: activePet.name,
                     breed: activePet.breed,
-                    age: new Date(activePet.birth_date).toLocaleDateString(),
+                    age: calculatePetAge(activePet.birth_date),
                 };
                 
                 try {

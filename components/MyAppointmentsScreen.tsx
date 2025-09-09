@@ -58,8 +58,8 @@ const AppointmentDetailModal: React.FC<{ appointment: Appointment; onClose: () =
     const vetNotesHtml = useMemo(() => {
         if (!isUpcoming && appointment.vet_notes) {
             // In a real app, sanitize this output with a library like DOMPurify
-            // FIX: Cast result of marked.parse to string to satisfy dangerouslySetInnerHTML type.
-            return { __html: marked.parse(appointment.vet_notes) as string };
+            // FIX: Replaced `marked.parseSync` with the correct synchronous call `marked()` for this version, which prevents a Promise from being passed to dangerouslySetInnerHTML.
+            return { __html: marked(appointment.vet_notes) as string };
         }
         return { __html: '' };
     }, [isUpcoming, appointment.vet_notes]);

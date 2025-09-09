@@ -1,10 +1,11 @@
+
 // Trigger Vercel deployment
 // FIX: Imported useState, useEffect, and useRef from React to resolve hook-related errors.
 import React, { useState, useEffect, useRef } from 'react';
 import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile, ActiveScreen, AdoptionListing, AdoptablePet, Shelter, ConnectProfile, AdoptionApplication, LogoutAnalytics, EmergencyContact } from './types';
 import { ICONS } from './constants';
 import * as geminiService from './services/geminiService';
-import { supabase } from './services/supabaseClient';
+import { supabase, bootstrapUserProfile } from './services/supabaseClient';
 import { Session, User, Provider } from '@supabase/supabase-js';
 
 import EnvironmentVariablePrompt from './components/ApiKeyPrompt';
@@ -1205,44 +1206,24 @@ const App: React.FC = () => {
         setDataLoading(true);
         setDataError(null);
         try {
-            console.log("Fetching data for user:", currentUser.id);
+            // Profile creation is now handled by bootstrapUserProfile before this function is called.
             const { data: profileData, error: profileError } = await supabase
                 .from('user_profiles')
                 .select('*')
                 .eq('auth_user_id', currentUser.id)
                 .single();
 
-            let currentProfile = profileData;
-
-            if (profileError && profileError.code === 'PGRST116') { // PGRST116: "The result contains 0 rows"
-                console.warn(`No profile found for user ${currentUser.id}. Creating one.`);
-                const { data: newProfile, error: insertError } = await supabase
-                    .from('user_profiles')
-                    .insert({
-                        auth_user_id: currentUser.id,
-                        email: currentUser.email!,
-                        name: currentUser.email?.split('@')[0] || 'New Pet Parent',
-                        city: '',
-                        // FIX: Add the 'phone' property, which is required by the Supabase 'user_profiles' table schema.
-                        phone: null,
-                    })
-                    .select()
-                    .single();
-
-                if (insertError) {
-                    console.error("Error creating profile:", insertError);
-                    throw insertError;
-                }
-                console.log("New profile created successfully:", newProfile);
-                currentProfile = newProfile;
-            } else if (profileError) {
+            if (profileError) {
                 console.error("Error fetching profile:", profileError);
                 throw profileError;
             }
+            
+            if (!profileData) {
+                // This should not happen if bootstrap was successful.
+                throw new Error("Could not fetch user profile.");
+            }
 
-            if (!currentProfile) throw new Error("Could not fetch or create user profile.");
-
-            // FIX: Cast `currentProfile` to the application-defined `UserProfile` type to resolve a type mismatch for the 'emergency_contact' field, which is `Json | null` in the database type but a structured `EmergencyContact | null` in the app.
+            const currentProfile = profileData;
             setProfile(currentProfile as UserProfile);
 
             const { data: petsData, error: petsError } = await supabase
@@ -1255,6 +1236,7 @@ const App: React.FC = () => {
             setPets(petsData || []);
             setActivePet(petsData?.[0] || null);
 
+            // Onboarding logic remains the same. Check if the bootstrapped/existing profile is complete.
             if (!currentProfile.city || !currentProfile.name.trim()) {
                 setOnboardingStep('profile');
             } else if (petsData?.length === 0) {
@@ -1276,8 +1258,22 @@ const App: React.FC = () => {
     };
 
     useEffect(() => {
+        const setupAndFetchData = async (currentUser: User) => {
+            console.log('Bootstrapping profile for', currentUser.id);
+            const bootstrapSuccess = await bootstrapUserProfile(currentUser);
+
+            if (bootstrapSuccess) {
+                console.log('Profile bootstrap complete, fetching data for', currentUser.id);
+                await fetchData(currentUser);
+            } else {
+                console.error('Failed to bootstrap profile. Data fetching aborted.');
+                setDataError("Could not initialize your user profile. Please try again.");
+                setDataLoading(false);
+            }
+        };
+        
         if (user) {
-            fetchData(user);
+            setupAndFetchData(user);
         } else if (!authLoading) {
             setProfile(null);
             setPets([]);

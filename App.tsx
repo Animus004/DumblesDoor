@@ -1467,7 +1467,7 @@ const useDataFetching = (user: User | null) => {
         try {
             const { data: profileData, error: profileError } = await supabase
                 .from('user_profiles')
-                .select('*')
+                .select('auth_user_id, name, email, phone, city, role, interests, verified, emergency_contact')
                 .eq('auth_user_id', currentUser.id)
                 .maybeSingle();
                 
@@ -1484,7 +1484,7 @@ const useDataFetching = (user: User | null) => {
             
             const { data: petsData, error: petsError } = await supabase
                 .from('pets')
-                .select('*')
+                .select('id, auth_user_id, name, photo_url, species, breed, birth_date, gender, size, energy_level, temperament, notes')
                 .eq('auth_user_id', currentUser.id);
 
             if (petsError) throw petsError;

@@ -1,7 +1,9 @@
 
+
+
 // Trigger Vercel deployment
-// FIX: Imported useState, useEffect, and useRef from React to resolve hook-related errors.
-import React, { useState, useEffect, useRef } from 'react';
+// FIX: Imported useState, useEffect, useRef, and useCallback from React to resolve hook-related errors.
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile, ActiveScreen, AdoptionListing, AdoptablePet, Shelter, ConnectProfile, AdoptionApplication, LogoutAnalytics, EmergencyContact } from './types';
 import { ICONS } from './constants';
 import * as geminiService from './services/geminiService';
@@ -1167,46 +1169,11 @@ const App: React.FC = () => {
     const [selectedAdoptionPetId, setSelectedAdoptionPetId] = useState<string | null>(null);
     const [adoptionListingForApplication, setAdoptionListingForApplication] = useState<AdoptionListing | null>(null);
     
-    // Auth Listener
-    useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            const currentUser = session?.user ?? null;
-            
-            setSession(session);
-            setUser(currentUser);
-            
-            if (_event === 'SIGNED_IN' && currentUser && !currentUser.email_confirmed_at) {
-                const { data: { user: refreshedUser } } = await supabase.auth.refreshSession();
-                if (refreshedUser && !refreshedUser.email_confirmed_at) {
-                    setNeedsVerification(true);
-                } else {
-                    setNeedsVerification(false);
-                }
-            } else {
-                setNeedsVerification(false);
-            }
-
-            setAuthLoading(false);
-            if (_event === 'SIGNED_IN') {
-                setSessionStartTime(Date.now());
-            }
-        });
-
-        // Also check on initial load
-         supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            setAuthLoading(false);
-        });
-
-        return () => subscription.unsubscribe();
-    }, []);
-
-    const fetchData = async (currentUser: User) => {
+    // FIX: Moved fetchData outside of useEffect to be accessible throughout the component, and wrapped in useCallback for optimization.
+    const fetchData = useCallback(async (currentUser: User) => {
         setDataLoading(true);
         setDataError(null);
         try {
-            // Profile creation is now handled by bootstrapUserProfile before this function is called.
             const { data: profileData, error: profileError } = await supabase
                 .from('user_profiles')
                 .select('*')
@@ -1219,12 +1186,12 @@ const App: React.FC = () => {
             }
             
             if (!profileData) {
-                // This should not happen if bootstrap was successful.
                 throw new Error("Could not fetch user profile.");
             }
 
             const currentProfile = profileData;
-            setProfile(currentProfile as UserProfile);
+            // FIX: Cast profileData to 'unknown' then to 'UserProfile' to resolve the type mismatch for the 'emergency_contact' (Json vs EmergencyContact) property.
+            setProfile(currentProfile as unknown as UserProfile);
 
             const { data: petsData, error: petsError } = await supabase
                 .from('pets')
@@ -1236,7 +1203,6 @@ const App: React.FC = () => {
             setPets(petsData || []);
             setActivePet(petsData?.[0] || null);
 
-            // Onboarding logic remains the same. Check if the bootstrapped/existing profile is complete.
             if (!currentProfile.city || !currentProfile.name.trim()) {
                 setOnboardingStep('profile');
             } else if (petsData?.length === 0) {
@@ -1255,32 +1221,52 @@ const App: React.FC = () => {
         } finally {
             setDataLoading(false);
         }
-    };
-
+    }, []);
+    
+    // Auth Listener & Data Fetching
     useEffect(() => {
-        const setupAndFetchData = async (currentUser: User) => {
-            console.log('Bootstrapping profile for', currentUser.id);
-            const bootstrapSuccess = await bootstrapUserProfile(currentUser);
-
-            if (bootstrapSuccess) {
-                console.log('Profile bootstrap complete, fetching data for', currentUser.id);
-                await fetchData(currentUser);
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            const currentUser = session?.user ?? null;
+            
+            setSession(session);
+            setUser(currentUser);
+            
+            if (_event === 'SIGNED_IN' && currentUser && !currentUser.email_confirmed_at) {
+                const { data: { user: refreshedUser } } = await supabase.auth.refreshSession();
+                if (refreshedUser && !refreshedUser.email_confirmed_at) {
+                    setNeedsVerification(true);
+                } else {
+                    setNeedsVerification(false);
+                }
             } else {
-                console.error('Failed to bootstrap profile. Data fetching aborted.');
-                setDataError("Could not initialize your user profile. Please try again.");
+                setNeedsVerification(false);
+            }
+
+            if ((_event === 'SIGNED_IN' || _event === 'INITIAL_SESSION') && currentUser) {
+                setSessionStartTime(Date.now());
+                console.log('Bootstrapping profile for', currentUser.id);
+                const bootstrapSuccess = await bootstrapUserProfile(currentUser);
+
+                if (bootstrapSuccess) {
+                    console.log('Profile bootstrap complete, fetching data for', currentUser.id);
+                    await fetchData(currentUser);
+                } else {
+                    console.error('Failed to bootstrap profile. Data fetching aborted.');
+                    setDataError("Could not initialize your user profile. Please try again.");
+                    setDataLoading(false);
+                }
+            } else if (!currentUser) { // Covers SIGNED_OUT and null initial session
+                setProfile(null);
+                setPets([]);
+                setActivePet(null);
                 setDataLoading(false);
             }
-        };
-        
-        if (user) {
-            setupAndFetchData(user);
-        } else if (!authLoading) {
-            setProfile(null);
-            setPets([]);
-            setActivePet(null);
-            setDataLoading(false);
-        }
-    }, [user, authLoading]);
+
+            setAuthLoading(false);
+        });
+
+        return () => subscription.unsubscribe();
+    }, [fetchData]);
 
     const handleLogout = async (analyticsData: LogoutAnalytics) => {
         await supabase.auth.signOut({ scope: analyticsData.scope });
@@ -1300,14 +1286,14 @@ const App: React.FC = () => {
 
     if (missingKeys.length > 0) return <EnvironmentVariablePrompt missingKeys={missingKeys} />;
     if (authLoading || (user && dataLoading)) return <LoadingScreen />;
-    if (dataError) return <AppErrorScreen message={dataError} onRetry={() => user && fetchData(user)} />;
+    if (dataError) return <AppErrorScreen message={dataError} onRetry={() => user && bootstrapUserProfile(user).then(ok => ok && fetchData(user))} />;
     if (!session) return <AuthScreen postLogoutMessage={postLogoutMessage} />;
     if (needsVerification && user) return <EmailVerificationScreen email={user.email!} />;
 
     if (onboardingStep) {
         switch (onboardingStep) {
             case 'welcome': return <WelcomeScreen onGetStarted={() => setOnboardingStep('profile')} />;
-            case 'profile': return <OnboardingProfileScreen user={user!} profile={profile} onProfileCreated={() => fetchData(user!)} />;
+            case 'profile': return <OnboardingProfileScreen user={user!} profile={profile} onProfileCreated={() => bootstrapUserProfile(user!).then(ok => ok && fetchData(user!))} />;
             case 'pet': return <OnboardingPetScreen user={user!} onPetAdded={() => { setOnboardingStep('complete'); fetchData(user!); }} onBack={() => setOnboardingStep('profile')} onSkip={() => setOnboardingStep(null)} />;
             case 'complete': return <OnboardingCompletionScreen pet={activePet} onComplete={() => { setOnboardingStep(null); setShowCelebration(true); }} />;
             default: return <AppErrorScreen message="Invalid onboarding state." onRetry={() => user && fetchData(user)} />;

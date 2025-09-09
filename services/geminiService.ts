@@ -2,8 +2,9 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { HealthCheckResult, GeminiChatMessage } from '../types';
 import type { Chat } from "@google/genai";
 
-// FIX: Per coding guidelines, initialize GoogleGenAI with process.env.API_KEY and assume it is available.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// FIX: Per coding guidelines, initialize GoogleGenAI with the API_KEY from the environment.
+// In a Vite environment, client-side variables must be prefixed with VITE_ and accessed via import.meta.env.
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 let chat: Chat | null = null;
 
 const fileToGenerativePart = (base64Data: string, mimeType: string) => {

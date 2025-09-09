@@ -1,9 +1,11 @@
 
 
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
 import type { User } from '@supabase/supabase-js';
-import type { Pet, UserProfile, ActiveScreen, LogoutAnalytics, Json } from '../types';
+// FIX: Import the `Json` type to handle Supabase JSONB column data.
+import type { Pet, UserProfile, ActiveScreen, LogoutAnalytics, EmergencyContact, Json } from '../types';
 import PetForm from './PetForm';
 
 // --- HELPER COMPONENTS ---
@@ -283,13 +285,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, profile, pets, onBa
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     
-    const parseEmergencyContact = (contact: Json | null): { name: string; phone: string } => {
+    const parseEmergencyContact = (contact: EmergencyContact | null): EmergencyContact => {
         if (
             contact &&
-            typeof contact === 'object' &&
-            !Array.isArray(contact) &&
-            'name' in contact &&
-            'phone' in contact &&
             typeof contact.name === 'string' &&
             typeof contact.phone === 'string'
         ) {
@@ -298,7 +296,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, profile, pets, onBa
         return { name: '', phone: '' };
     };
     
-    const [emergencyContact, setEmergencyContact] = useState(() => parseEmergencyContact(profile?.emergency_contact));
+    const [emergencyContact, setEmergencyContact] = useState<EmergencyContact>(() => parseEmergencyContact(profile?.emergency_contact || null));
 
     useEffect(() => {
         if (profile) {
@@ -338,7 +336,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, profile, pets, onBa
         if (!user) return;
         setIsLoading(true);
         setError('');
-        const { error: updateError } = await supabase.from('user_profiles').update({ emergency_contact: emergencyContact }).eq('auth_user_id', user.id);
+        // FIX: Cast `emergencyContact` to `Json` to satisfy the Supabase client's type expectation for JSONB columns.
+        const { error: updateError } = await supabase.from('user_profiles').update({ emergency_contact: emergencyContact as Json }).eq('auth_user_id', user.id);
         if (updateError) {
             setError(`Failed to save contact: ${updateError.message}`);
         } else {

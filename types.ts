@@ -7,6 +7,10 @@ export type ProfessionalProfile = Database['public']['Tables']['professional_pro
 export type DbVetService = Database['public']['Tables']['vet_services']['Row'];
 export type VendorProduct = Database['public']['Tables']['vendor_products']['Row'];
 
+export interface EmergencyContact {
+  name: string;
+  phone: string;
+}
 
 export interface UserProfile {
   auth_user_id: string;
@@ -17,7 +21,7 @@ export interface UserProfile {
   role: 'user' | 'admin';
   interests: string[] | null;
   verified: boolean;
-  emergency_contact: Json | null;
+  emergency_contact: EmergencyContact | null;
 }
 
 export interface Pet {

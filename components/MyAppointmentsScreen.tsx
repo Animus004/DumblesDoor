@@ -106,7 +106,7 @@ const AppointmentDetailModal: React.FC<{ appointment: Appointment; onClose: () =
                                 Click to upload files
                              </button>
                              <ul className="mt-2 space-y-1 text-sm">
-                                {documents.map((doc, i) => <li key={i} className="bg-gray-100 p-1 rounded-md">{doc.name}</li>)}
+                                {documents.map((doc, i) => <li key={`${doc.name}-${i}`} className="bg-gray-100 p-1 rounded-md">{doc.name}</li>)}
                              </ul>
                         </div>
                         <button onClick={handleSave} className="w-full bg-teal-500 text-white font-bold py-3 rounded-lg">Save & Send to Vet</button>

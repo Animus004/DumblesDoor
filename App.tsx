@@ -1,7 +1,8 @@
+
 // Trigger Vercel deployment
 // FIX: Imported useState, useEffect, and useRef from React to resolve hook-related errors.
 import React, { useState, useEffect, useRef } from 'react';
-import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile, ActiveScreen, AdoptionListing, AdoptablePet, Shelter, ConnectProfile, AdoptionApplication, LogoutAnalytics } from './types';
+import { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile, ActiveScreen, AdoptionListing, AdoptablePet, Shelter, ConnectProfile, AdoptionApplication, LogoutAnalytics, EmergencyContact } from './types';
 import { ICONS } from './constants';
 import * as geminiService from './services/geminiService';
 import { supabase } from './services/supabaseClient';
@@ -1458,7 +1459,9 @@ const useDataFetching = (user: User | null) => {
                 setLoading(false);
                 return;
             }
-            setUserProfile(profileData);
+            // FIX: Cast `profileData` to `unknown` before casting to `UserProfile` to resolve the type
+            // incompatibility between Supabase's generated `Json` type and the app's `EmergencyContact` type.
+            setUserProfile(profileData as unknown as UserProfile);
             
             const { data: petsData, error: petsError } = await supabase
                 .from('pets')
@@ -1674,8 +1677,7 @@ const App: React.FC = () => {
     // --- EFFECTS ---
     // Effect for one-time setup: checking env vars and setting up auth listener
     useEffect(() => {
-        // FIX: Removed VITE_API_KEY from required env vars check per guidelines.
-        const requiredVars = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
+        const requiredVars = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'VITE_GEMINI_API_KEY'];
         const missing = requiredVars.filter(v => !import.meta.env[v]);
         setMissingEnvVars(missing);
         

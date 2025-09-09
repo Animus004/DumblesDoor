@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Pet, UserProfile, ActiveScreen } from '../types';
+import type { Pet, UserProfile, ActiveScreen, HealthCheckResult } from '../types';
 import ServiceCard from './ServiceCard';
 import { ICONS } from '../constants';
 import Confetti from './Confetti';
+import { supabase } from '../services/supabaseClient';
+
 
 // --- DYNAMIC COMPONENTS ---
 
@@ -28,10 +30,22 @@ const AnimatedGreeting: React.FC<{ name: string | undefined }> = ({ name }) => {
   );
 };
 
-const WellnessActionButton: React.FC<{ disabled: boolean; onNavigate: (screen: ActiveScreen) => void }> = ({ disabled, onNavigate }) => {
-  const wellnessScore = 85; // This could be dynamic in a future version
-  const circumference = 2 * Math.PI * 65; // radius = 65 for a 144px (w-36) container
-  const offset = circumference - (wellnessScore / 100) * circumference;
+const WellnessActionButton: React.FC<{
+  score: number | null;
+  isLoading: boolean;
+  disabled: boolean;
+  onNavigate: (screen: ActiveScreen) => void;
+}> = ({ score, isLoading, disabled, onNavigate }) => {
+  const displayScore = isLoading ? '...' : (score ?? '--');
+  const circumference = 2 * Math.PI * 65;
+  const offset = score ? circumference - (score / 100) * circumference : circumference;
+  
+  const scoreColor = useMemo(() => {
+    if (score === null) return 'var(--color-text-secondary)';
+    if (score > 89) return '#22c55e'; // green-500
+    if (score > 69) return '#f59e0b'; // amber-500
+    return '#ef4444'; // red-500
+  }, [score]);
 
   return (
     <button
@@ -43,15 +57,17 @@ const WellnessActionButton: React.FC<{ disabled: boolean; onNavigate: (screen: A
         borderColor: 'var(--card-border)',
         borderWidth: '1px'
       }}
-      aria-label={`Current Wellness Score is ${wellnessScore} percent. Tap for an AI Health Scan.`}
+      aria-label={`Current Wellness Score is ${displayScore}. Tap for an AI Health Scan.`}
     >
       <svg className="absolute inset-0 w-full h-full" viewBox="0 0 144 144">
         <circle className="wellness-circle-bg" cx="72" cy="72" r="65"></circle>
-        <circle className="wellness-circle-progress" cx="72" cy="72" r="65" style={{strokeDasharray: circumference, strokeDashoffset: offset}}></circle>
+        {!isLoading && <circle className="wellness-circle-progress" cx="72" cy="72" r="65" style={{strokeDasharray: circumference, strokeDashoffset: offset, stroke: scoreColor}}></circle>}
       </svg>
       <div className="relative z-10 flex flex-col items-center">
-        <span className="font-poppins font-bold text-3xl" style={{ color: 'var(--color-text-primary)' }}>{wellnessScore}%</span>
-        <span className="text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>Wellness Score</span>
+        <span className="font-poppins font-bold text-3xl" style={{ color: isLoading ? 'var(--color-text-primary)' : scoreColor }}>
+          {displayScore}
+        </span>
+        <span className="text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>{score === null && !isLoading ? 'No Scans Yet' : 'Wellness Score'}</span>
       </div>
     </button>
   );
@@ -148,6 +164,50 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile, isLoa
   const carouselRef = React.useRef<HTMLDivElement>(null);
   const [activeServiceIndex, setActiveServiceIndex] = useState(0);
 
+  const [wellnessScore, setWellnessScore] = useState<number | null>(null);
+  const [isFetchingScore, setIsFetchingScore] = useState(true);
+
+  useEffect(() => {
+    const fetchLatestScore = async () => {
+        if (!pet || !supabase) {
+            setIsFetchingScore(false);
+            setWellnessScore(null);
+            return;
+        }
+        setIsFetchingScore(true);
+        try {
+            const { data, error } = await supabase
+                .from('ai_feedback')
+                .select('ai_response')
+                .eq('pet_id', pet.id)
+                .order('submitted_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (error || !data) {
+                setWellnessScore(null);
+                return;
+            }
+            
+            // The ai_response is a JSON string, so we need to parse it.
+            const result: HealthCheckResult = JSON.parse(data.ai_response);
+            if (result && typeof result.overallHealthScore === 'number') {
+                setWellnessScore(result.overallHealthScore);
+            } else {
+                setWellnessScore(null);
+            }
+        } catch (e) {
+            console.error("Failed to fetch or parse wellness score:", e);
+            setWellnessScore(null);
+        } finally {
+            setIsFetchingScore(false);
+        }
+    };
+
+    fetchLatestScore();
+  }, [pet]);
+
+
   const services = [
     { title: "AI Health Check", subtitle: "Quick health analysis", icon: ICONS.HEALTH_CHECK, onClick: () => onNavigate('health'), disabled: isPetFeatureDisabled },
     { title: "Book a Vet", subtitle: "Find trusted vets", icon: ICONS.VET_BOOKING, onClick: () => onNavigate('vet'), disabled: isPetFeatureDisabled },
@@ -200,7 +260,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile, isLoa
 
           {/* Main Action */}
           <section className="flex flex-col items-center space-y-4 pt-6">
-            <WellnessActionButton disabled={isPetFeatureDisabled} onNavigate={onNavigate} />
+            <WellnessActionButton score={wellnessScore} isLoading={isFetchingScore} disabled={isPetFeatureDisabled} onNavigate={onNavigate} />
             <p className="text-sm animate-slide-in h-5" style={{ color: 'var(--color-text-secondary)' }}>
               {isPetFeatureDisabled ? 'Add a pet to get started!' : `How's ${pet?.name} feeling today?`}
             </p>

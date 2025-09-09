@@ -1,9 +1,4 @@
 
-
-
-
-
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
 import type { User } from '@supabase/supabase-js';
@@ -339,8 +334,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, profile, pets, onBa
         if (!user) return;
         setIsLoading(true);
         setError('');
-        // FIX: Cast `emergencyContact` to `Json` to satisfy the Supabase client's type expectation for JSONB columns.
-        const { error: updateError } = await supabase.from('user_profiles').update({ emergency_contact: emergencyContact as Json }).eq('auth_user_id', user.id);
+        // FIX: Cast `emergencyContact` to `unknown` then to `Json` to resolve the TypeScript error when updating a JSONB column.
+        const { error: updateError } = await supabase.from('user_profiles').update({ emergency_contact: emergencyContact as unknown as Json }).eq('auth_user_id', user.id);
         if (updateError) {
             setError(`Failed to save contact: ${updateError.message}`);
         } else {

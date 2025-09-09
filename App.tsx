@@ -538,7 +538,6 @@ const AdoptionScreen: React.FC<{ onBack: () => void; onSelectPet: (petId: string
                     if (rpcError) throw rpcError;
                     fetchedPets = (data as AdoptablePet[]) || [];
                 } else {
-                    // FIX: Corrected the destructuring of the supabase response to correctly define `data` and `error` variables.
                     const { data, error } = await supabase
                         .from('adoption_listings')
                         .select('*, shelter:shelters(name, city)')

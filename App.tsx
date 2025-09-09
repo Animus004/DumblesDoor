@@ -1,6 +1,3 @@
-
-
-
 // Trigger Vercel deployment
 // FIX: Imported useState, useEffect, and useRef from React to resolve hook-related errors.
 import React, { useState, useEffect, useRef } from 'react';
@@ -1067,8 +1064,6 @@ const EmailVerificationScreen: React.FC<{ email: string }> = ({ email }) => {
     );
 };
 
-// FIX: Replaced the truncated and broken AuthScreen component with a fully functional placeholder.
-// This new component correctly returns JSX, resolving the 'is not assignable to type FC' error.
 const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage }) => {
     const [isLoginView, setIsLoginView] = useState(true);
     const [email, setEmail] = useState('');
@@ -1085,12 +1080,20 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
                 const { error } = await supabase.auth.signInWithPassword({ email, password });
                 if (error) throw error;
             } else {
-                const { error } = await supabase.auth.signUp({ email, password });
+                const { data, error } = await supabase.auth.signUp({ 
+                    email, 
+                    password,
+                    options: {
+                        emailRedirectTo: window.location.origin,
+                    }
+                });
                 if (error) throw error;
-                alert('Check your email for the confirmation link!');
+                if (!data.session) {
+                   alert('Check your email for the confirmation link!');
+                }
             }
         } catch (error: any) {
-            setError(error.message);
+            setError(getFriendlyAuthErrorMessage(error.message));
         } finally {
             setLoading(false);
         }
@@ -1101,7 +1104,7 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
             <div className="w-full max-w-sm">
                 <h2 className="text-3xl font-bold text-center mb-6">{isLoginView ? 'Log In' : 'Sign Up'}</h2>
                 {postLogoutMessage && <p className="text-green-600 text-center mb-4">{postLogoutMessage}</p>}
-                {error && <p className="text-red-500 text-center mb-4">{error}</p>}
+                {error && <p className="text-red-500 text-center mb-4 p-3 bg-red-50 rounded-md">{error}</p>}
                 <form onSubmit={handleAuth} className="space-y-4">
                     <input
                         type="email"
@@ -1132,40 +1135,225 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
 };
 
 
-// FIX: Added a main App component to serve as the application's root.
-// This component was missing, which caused the import error in `index.tsx`.
-// It handles basic state management for the user session and renders other screens.
 const App: React.FC = () => {
+    // Environment variable check
+    const missingKeys = [
+        !import.meta.env.VITE_SUPABASE_URL && "VITE_SUPABASE_URL",
+        !import.meta.env.VITE_SUPABASE_ANON_KEY && "VITE_SUPABASE_ANON_KEY",
+        !import.meta.env.VITE_GEMINI_API_KEY && "VITE_GEMINI_API_KEY",
+    ].filter(Boolean) as string[];
+
+    // Auth State
     const [session, setSession] = useState<Session | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [user, setUser] = useState<User | null>(null);
+    const [authLoading, setAuthLoading] = useState(true);
+    const [postLogoutMessage, setPostLogoutMessage] = useState('');
+    const [needsVerification, setNeedsVerification] = useState(false);
+
+    // App Data State
+    const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [pets, setPets] = useState<Pet[]>([]);
+    const [activePet, setActivePet] = useState<Pet | null>(null);
+    const [dataLoading, setDataLoading] = useState(true);
+    const [dataError, setDataError] = useState<string | null>(null);
     
+    // UI State
+    const [onboardingStep, setOnboardingStep] = useState<'welcome' | 'profile' | 'pet' | 'complete' | null>(null);
+    const [activeScreen, setActiveScreen] = useState<ActiveScreen>('home');
+    const [showCelebration, setShowCelebration] = useState(false);
+    const [sessionStartTime, setSessionStartTime] = useState(Date.now());
+    const [draftPostContent, setDraftPostContent] = useState('');
+    const [selectedAdoptionPetId, setSelectedAdoptionPetId] = useState<string | null>(null);
+    const [adoptionListingForApplication, setAdoptionListingForApplication] = useState<AdoptionListing | null>(null);
+    
+    // Auth Listener
     useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            const currentUser = session?.user ?? null;
+            
             setSession(session);
-            setLoading(false);
+            setUser(currentUser);
+            
+            if (_event === 'SIGNED_IN' && currentUser && !currentUser.email_confirmed_at) {
+                const { data: { user: refreshedUser } } = await supabase.auth.refreshSession();
+                if (refreshedUser && !refreshedUser.email_confirmed_at) {
+                    setNeedsVerification(true);
+                } else {
+                    setNeedsVerification(false);
+                }
+            } else {
+                setNeedsVerification(false);
+            }
+
+            setAuthLoading(false);
+            if (_event === 'SIGNED_IN') {
+                setSessionStartTime(Date.now());
+            }
         });
 
-        // Initial check
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        // Also check on initial load
+         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
-            setLoading(false);
+            setUser(session?.user ?? null);
+            setAuthLoading(false);
         });
 
         return () => subscription.unsubscribe();
     }, []);
 
-    if (loading) {
-        return <LoadingScreen />;
+    const fetchData = async (currentUser: User) => {
+        setDataLoading(true);
+        setDataError(null);
+        try {
+            console.log("Fetching data for user:", currentUser.id);
+            const { data: profileData, error: profileError } = await supabase
+                .from('user_profiles')
+                .select('*')
+                .eq('auth_user_id', currentUser.id)
+                .single();
+
+            let currentProfile = profileData;
+
+            if (profileError && profileError.code === 'PGRST116') { // PGRST116: "The result contains 0 rows"
+                console.warn(`No profile found for user ${currentUser.id}. Creating one.`);
+                const { data: newProfile, error: insertError } = await supabase
+                    .from('user_profiles')
+                    .insert({
+                        auth_user_id: currentUser.id,
+                        email: currentUser.email!,
+                        name: currentUser.email?.split('@')[0] || 'New Pet Parent',
+                        city: '',
+                        // FIX: Add the 'phone' property, which is required by the Supabase 'user_profiles' table schema.
+                        phone: null,
+                    })
+                    .select()
+                    .single();
+
+                if (insertError) {
+                    console.error("Error creating profile:", insertError);
+                    throw insertError;
+                }
+                console.log("New profile created successfully:", newProfile);
+                currentProfile = newProfile;
+            } else if (profileError) {
+                console.error("Error fetching profile:", profileError);
+                throw profileError;
+            }
+
+            if (!currentProfile) throw new Error("Could not fetch or create user profile.");
+
+            // FIX: Cast `currentProfile` to the application-defined `UserProfile` type to resolve a type mismatch for the 'emergency_contact' field, which is `Json | null` in the database type but a structured `EmergencyContact | null` in the app.
+            setProfile(currentProfile as UserProfile);
+
+            const { data: petsData, error: petsError } = await supabase
+                .from('pets')
+                .select('*')
+                .eq('auth_user_id', currentUser.id);
+
+            if (petsError) throw petsError;
+
+            setPets(petsData || []);
+            setActivePet(petsData?.[0] || null);
+
+            if (!currentProfile.city || !currentProfile.name.trim()) {
+                setOnboardingStep('profile');
+            } else if (petsData?.length === 0) {
+                setOnboardingStep('pet');
+            } else {
+                setOnboardingStep(null);
+            }
+
+        } catch (err: any) {
+            console.error("Data fetching error:", err);
+            if (err.message?.includes('security policy')) {
+                setDataError("Permissions error: Could not load your data due to security policies. Please try logging in again.");
+            } else {
+                setDataError("Failed to load data. Something went wrong.");
+            }
+        } finally {
+            setDataLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (user) {
+            fetchData(user);
+        } else if (!authLoading) {
+            setProfile(null);
+            setPets([]);
+            setActivePet(null);
+            setDataLoading(false);
+        }
+    }, [user, authLoading]);
+
+    const handleLogout = async (analyticsData: LogoutAnalytics) => {
+        await supabase.auth.signOut({ scope: analyticsData.scope });
+        setPostLogoutMessage('You have been successfully logged out.');
+        setProfile(null);
+        setPets([]);
+        setActivePet(null);
+        setActiveScreen('home');
+    };
+
+    const handleNavigate = (screen: ActiveScreen) => {
+        setActiveScreen(screen);
+        // Reset specific states when navigating away
+        setSelectedAdoptionPetId(null);
+        setAdoptionListingForApplication(null);
+    };
+
+    if (missingKeys.length > 0) return <EnvironmentVariablePrompt missingKeys={missingKeys} />;
+    if (authLoading || (user && dataLoading)) return <LoadingScreen />;
+    if (dataError) return <AppErrorScreen message={dataError} onRetry={() => user && fetchData(user)} />;
+    if (!session) return <AuthScreen postLogoutMessage={postLogoutMessage} />;
+    if (needsVerification && user) return <EmailVerificationScreen email={user.email!} />;
+
+    if (onboardingStep) {
+        switch (onboardingStep) {
+            case 'welcome': return <WelcomeScreen onGetStarted={() => setOnboardingStep('profile')} />;
+            case 'profile': return <OnboardingProfileScreen user={user!} profile={profile} onProfileCreated={() => fetchData(user!)} />;
+            case 'pet': return <OnboardingPetScreen user={user!} onPetAdded={() => { setOnboardingStep('complete'); fetchData(user!); }} onBack={() => setOnboardingStep('profile')} onSkip={() => setOnboardingStep(null)} />;
+            case 'complete': return <OnboardingCompletionScreen pet={activePet} onComplete={() => { setOnboardingStep(null); setShowCelebration(true); }} />;
+            default: return <AppErrorScreen message="Invalid onboarding state." onRetry={() => user && fetchData(user)} />;
+        }
     }
 
-    if (!session) {
-        return <AuthScreen postLogoutMessage="" />;
-    }
+    const renderActiveScreen = () => {
+        switch (activeScreen) {
+            case 'home': return <HomeScreen onNavigate={handleNavigate} pet={activePet} profile={profile} isLoading={dataLoading} showCelebration={showCelebration} />;
+            case 'book': return <PetBookScreen onBack={() => setActiveScreen('home')} pet={activePet} setDraftPostContent={setDraftPostContent} />;
+            case 'connect': return <ConnectScreen currentUserProfile={profile} currentUser={user} />;
+            case 'profile': return <ProfileScreen user={user} profile={profile} pets={pets} onBack={() => setActiveScreen('home')} onLogout={handleLogout} onDataUpdate={() => fetchData(user!)} onNavigate={handleNavigate} sessionStartTime={sessionStartTime} draftPostContent={draftPostContent} />;
+            case 'health': return <HealthCheckScreen pet={activePet} onBack={() => setActiveScreen('home')} onAnalyze={async ()=>{}} isChecking={false} result={null} error={null} onNavigate={handleNavigate} />;
+            case 'essentials': return <ShopScreen onBack={() => setActiveScreen('home')} />;
+            case 'vet': return <VetBookingFlow onBack={() => setActiveScreen('home')} user={user!} pets={pets} />;
+            case 'adoption':
+                 if (selectedAdoptionPetId) return <PetDetailScreen petId={selectedAdoptionPetId} onBack={() => setSelectedAdoptionPetId(null)} onApply={(listing) => { setAdoptionListingForApplication(listing); setActiveScreen('adoptionApplication'); }} />;
+                 return <AdoptionScreen onBack={() => setActiveScreen('home')} onSelectPet={setSelectedAdoptionPetId} />;
+            case 'adoptionApplication':
+                 if (adoptionListingForApplication) return <AdoptionApplicationScreen listing={adoptionListingForApplication} userProfile={profile} onBack={() => setActiveScreen('adoption')} onSubmitted={() => { setAdoptionListingForApplication(null); setActiveScreen('myApplications'); }} />;
+                 return <AdoptionScreen onBack={() => setActiveScreen('home')} onSelectPet={setSelectedAdoptionPetId} />; // Fallback
+            case 'myApplications': return <MyApplicationsScreen onBack={() => setActiveScreen('profile')} />;
+            case 'safetyCenter': return <SafetyCenterScreen onBack={() => setActiveScreen('profile')} />;
+            case 'dataPrivacy': return <DataPrivacyScreen onBack={() => setActiveScreen('profile')} onExportData={()=>{}} onDeleteAccount={()=>{}} />;
+            case 'myVetAppointments': return <MyAppointmentsScreen onBack={() => setActiveScreen('profile')} />;
+            case 'admin':
+                if (profile?.role === 'admin') return <AdminDashboardScreen onBack={() => setActiveScreen('profile')} />;
+                return <HomeScreen onNavigate={handleNavigate} pet={activePet} profile={profile} isLoading={dataLoading} showCelebration={false} />; // Fallback for non-admins
+            default: return <HomeScreen onNavigate={handleNavigate} pet={activePet} profile={profile} isLoading={dataLoading} showCelebration={showCelebration} />;
+        }
+    };
+    
+    // Don't show bottom nav on screens that are part of a sub-flow
+    const showBottomNav = ['home', 'book', 'connect', 'adoption', 'profile'].includes(activeScreen);
 
-    // NOTE: This is a simplified version. A complete implementation would require
-    // routing and state management to render the various screens like HomeScreen,
-    // ProfileScreen, etc., based on user interaction.
-    return <HomeScreen onNavigate={() => {}} pet={null} profile={null} isLoading={false} showCelebration={false} />;
+    return (
+        <div className="app-container" style={{paddingBottom: showBottomNav ? '4rem' : '0'}}>
+            {renderActiveScreen()}
+            {showBottomNav && <BottomNav activeScreen={activeScreen} onNavigate={handleNavigate} />}
+        </div>
+    );
 };
+
 
 export default App;

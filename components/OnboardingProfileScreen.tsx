@@ -46,9 +46,15 @@ const OnboardingProfileScreen: React.FC<OnboardingProfileScreenProps> = ({ user,
     });
 
     if (upsertError) {
-      setError(`Failed to create profile: ${upsertError.message}`);
+      console.error("Error upserting profile:", upsertError); // Debugging log
+      if (upsertError.message.includes('security policy')) {
+          setError("Permission denied. You might not have the rights to update this profile.");
+      } else {
+          setError(`Failed to save profile: ${upsertError.message}`);
+      }
       setLoading(false);
     } else {
+      console.log('User profile upserted successfully for user ID:', user.id); // Debugging log
       onProfileCreated();
     }
   };

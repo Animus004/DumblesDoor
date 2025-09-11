@@ -1,4 +1,5 @@
 
+
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import type { Database } from '../database.types';
 
@@ -17,36 +18,42 @@ if (supabaseUrl && supabaseAnonKey) {
   console.warn("Supabase environment variables are not set. Please check your .env file or hosting provider settings.");
 }
 
-export const bootstrapUserProfile = async (user: User): Promise<boolean> => {
+// Bootstraps a user_profiles record for every authenticated user
+export const bootstrapUserProfile = async (user: User) => {
     if (!supabase) {
         console.error("Supabase client not initialized.");
-        return false;
+        return;
     }
-    
-    const { data, error } = await supabase
+
+    console.log('Bootstrapping profile for', user.id);
+
+    // Check if a profile already exists. .single() will error if no rows are found.
+    const { data: existing, error } = await supabase
         .from('user_profiles')
         .select('auth_user_id')
         .eq('auth_user_id', user.id)
         .single();
+    
+    // If a profile exists (no error), we don't need to do anything.
+    if (existing) {
+        return;
+    }
 
-    if (error && error.code !== 'PGRST116') { // 'PGRST116' means no rows found, which is expected
+    // If the error is anything other than "no rows found", log it and stop.
+    if (error && error.code !== 'PGRST116') {
         console.error("Error checking for user profile:", error);
-        return false;
+        return;
     }
-    
-    if (data) {
-        console.log("Profile already exists for user:", user.id);
-        return true;
-    }
-    
-    console.log(`No profile found for user ${user.id}. Creating a new one.`);
+
+    // At this point, we know no profile exists and there wasn't a database error.
+    // Let's create the profile.
     const { error: insertError } = await supabase
         .from('user_profiles')
         .insert({
             auth_user_id: user.id,
-            email: user.email!,
-            name: '', // Will be filled in during onboarding
-            city: '', // Will be filled in during onboarding
+            email: user.email!, // Assume email is always present for a new user
+            name: '',
+            city: '',
             phone: null,
             role: 'user',
             verified: false,
@@ -54,11 +61,9 @@ export const bootstrapUserProfile = async (user: User): Promise<boolean> => {
 
     if (insertError) {
         console.error("Error creating profile:", insertError);
-        return false;
+    } else {
+        console.log('Created profile for', user.id);
     }
-    
-    console.log("New profile created successfully for user:", user.id);
-    return true;
 };
 
 

@@ -1,6 +1,7 @@
 
 
 
+
 // Trigger Vercel deployment
 // FIX: Imported useState, useEffect, useRef, and useCallback from React to resolve hook-related errors.
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -1101,6 +1102,23 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
             setLoading(false);
         }
     };
+    
+    const handleGoogleSignIn = async () => {
+        setLoading(true);
+        setError('');
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: window.location.origin
+            }
+        });
+        if (error) {
+            setError(getFriendlyAuthErrorMessage(error.message));
+            setLoading(false);
+        }
+        // No need to setLoading(false) on success, as the page will redirect.
+    };
+
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-4">
@@ -1129,6 +1147,28 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
                         {loading ? 'Processing...' : (isLoginView ? 'Log In' : 'Sign Up')}
                     </button>
                 </form>
+
+                <div className="relative flex py-5 items-center">
+                    <div className="flex-grow border-t border-gray-200"></div>
+                    <span className="flex-shrink mx-4 text-xs font-semibold text-gray-400 uppercase">Or</span>
+                    <div className="flex-grow border-t border-gray-200"></div>
+                </div>
+
+                <button 
+                    type="button" 
+                    onClick={handleGoogleSignIn}
+                    disabled={loading}
+                    className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 rounded-lg bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-5 h-5">
+                      <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12s5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path>
+                      <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path>
+                      <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.222,0-9.655-3.373-11.127-7.962l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path>
+                      <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C39.902,35.61,44,30.45,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path>
+                    </svg>
+                    <span>{isLoginView ? 'Log In' : 'Sign Up'} with Google</span>
+                </button>
+
                 <button onClick={() => setIsLoginView(!isLoginView)} className="w-full mt-4 text-sm text-center text-teal-600">
                     {isLoginView ? 'Need an account? Sign Up' : 'Already have an account? Log In'}
                 </button>
@@ -1242,19 +1282,11 @@ const App: React.FC = () => {
                 setNeedsVerification(false);
             }
 
-            if ((_event === 'SIGNED_IN' || _event === 'INITIAL_SESSION') && currentUser) {
+            if ((_event === 'SIGNED_IN' || (_event === 'INITIAL_SESSION' && session)) && currentUser) {
                 setSessionStartTime(Date.now());
-                console.log('Bootstrapping profile for', currentUser.id);
-                const bootstrapSuccess = await bootstrapUserProfile(currentUser);
-
-                if (bootstrapSuccess) {
-                    console.log('Profile bootstrap complete, fetching data for', currentUser.id);
-                    await fetchData(currentUser);
-                } else {
-                    console.error('Failed to bootstrap profile. Data fetching aborted.');
-                    setDataError("Could not initialize your user profile. Please try again.");
-                    setDataLoading(false);
-                }
+                await bootstrapUserProfile(currentUser);
+                console.log('Profile bootstrapped, now fetching data for', currentUser.id);
+                fetchData(currentUser);
             } else if (!currentUser) { // Covers SIGNED_OUT and null initial session
                 setProfile(null);
                 setPets([]);
@@ -1286,14 +1318,14 @@ const App: React.FC = () => {
 
     if (missingKeys.length > 0) return <EnvironmentVariablePrompt missingKeys={missingKeys} />;
     if (authLoading || (user && dataLoading)) return <LoadingScreen />;
-    if (dataError) return <AppErrorScreen message={dataError} onRetry={() => user && bootstrapUserProfile(user).then(ok => ok && fetchData(user))} />;
+    if (dataError) return <AppErrorScreen message={dataError} onRetry={() => user && bootstrapUserProfile(user).then(() => fetchData(user))} />;
     if (!session) return <AuthScreen postLogoutMessage={postLogoutMessage} />;
     if (needsVerification && user) return <EmailVerificationScreen email={user.email!} />;
 
     if (onboardingStep) {
         switch (onboardingStep) {
             case 'welcome': return <WelcomeScreen onGetStarted={() => setOnboardingStep('profile')} />;
-            case 'profile': return <OnboardingProfileScreen user={user!} profile={profile} onProfileCreated={() => bootstrapUserProfile(user!).then(ok => ok && fetchData(user!))} />;
+            case 'profile': return <OnboardingProfileScreen user={user!} profile={profile} onProfileCreated={() => bootstrapUserProfile(user!).then(() => fetchData(user!))} />;
             case 'pet': return <OnboardingPetScreen user={user!} onPetAdded={() => { setOnboardingStep('complete'); fetchData(user!); }} onBack={() => setOnboardingStep('profile')} onSkip={() => setOnboardingStep(null)} />;
             case 'complete': return <OnboardingCompletionScreen pet={activePet} onComplete={() => { setOnboardingStep(null); setShowCelebration(true); }} />;
             default: return <AppErrorScreen message="Invalid onboarding state." onRetry={() => user && fetchData(user)} />;

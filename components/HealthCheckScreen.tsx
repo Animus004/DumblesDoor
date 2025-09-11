@@ -48,7 +48,7 @@ const VisualHealthReport: React.FC<{ pet: Pet; result: HealthCheckResult; previo
     const [showShareToast, setShowShareToast] = useState(false);
     
     useEffect(() => {
-        if (result.overallHealthScore >= 90) setShowCelebration(true);
+        if (result.overallHealthScore >= 80) setShowCelebration(true);
     }, [result.overallHealthScore]);
     
     const handleShare = () => {

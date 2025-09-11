@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import type { Pet, EnrichedPetbookPost } from '../types';
 import * as geminiService from '../services/geminiService';
+import SkeletonLoader from './SkeletonLoader';
 
 // --- HELPER FUNCTIONS & COMPONENTS ---
 
@@ -315,18 +316,23 @@ const PetBookScreen: React.FC<{ pet: Pet | null; setDraftPostContent: (content: 
                         <button onClick={() => setActiveFeed('local')} className={`w-full p-2 text-sm font-semibold rounded-md transition-colors ${activeFeed === 'local' ? 'bg-white text-teal-600 shadow' : 'text-gray-600'}`}>Local</button>
                     </div>
                 </div>
-
-                {loading && <div className="text-center p-8"><div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div><p className="mt-2 text-gray-600">Loading feed...</p></div>}
+                
                 {error && <div className="bg-red-50 text-red-700 p-4 rounded-lg text-center">{error}</div>}
-                {!loading && filteredFeedPosts.length === 0 && (
+
+                {loading ? (
+                    <div className="space-y-4">
+                        {[...Array(3)].map((_, i) => <SkeletonLoader key={i} className="h-64" />)}
+                    </div>
+                ) : filteredFeedPosts.length === 0 ? (
                     <div className="text-center text-gray-500 pt-16">
                         <p className="font-semibold">It's quiet here...</p>
                         <p>Be the first to share something with the community!</p>
                     </div>
+                ) : (
+                    <div className="space-y-4">
+                        {filteredFeedPosts.map(post => <PostCard key={post.id} post={post} pet={pet} />)}
+                    </div>
                 )}
-                <div className="space-y-4">
-                    {filteredFeedPosts.map(post => <PostCard key={post.id} post={post} pet={pet} />)}
-                </div>
             </main>
         </div>
     );

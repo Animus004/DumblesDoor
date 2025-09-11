@@ -22,7 +22,7 @@ const AnimatedGreeting: React.FC<{ name: string | undefined }> = ({ name }) => {
   const text = name ? `${greeting}, ${name.split(' ')[0]}!` : greeting;
   
   return (
-    <h1 className="font-poppins text-3xl md:text-4xl font-extrabold text-center pt-4" style={{ color: 'var(--color-text-primary)' }}>
+    <h1 className="font-poppins text-3xl md:text-4xl font-extrabold" style={{ color: 'var(--color-text-primary)' }}>
       {text.split('').map((char, index) => (
         <span key={index} className="greeting-char" style={{ animationDelay: `${index * 0.03}s` }}>
           {char === ' ' ? '\u00A0' : char}
@@ -250,7 +250,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ pet, profile, isLoading, showCe
         style={{ animation: 'fade-in 0.5s ease-in-out' }}
       >
         <div className="p-4 md:p-6 space-y-8 pb-24">
-          <AnimatedGreeting name={profile?.name} />
+          <div className="flex justify-center items-center gap-4 pt-4">
+            <AnimatedGreeting name={profile?.name} />
+            {pet && (
+              <img 
+                src={pet.photo_url} 
+                alt={pet.name}
+                className="w-10 h-10 rounded-full object-cover shadow-lg border-2 border-white/50"
+              />
+            )}
+          </div>
 
           <section className="flex flex-col items-center space-y-4 pt-6">
             <WellnessActionButton score={wellnessScore} isLoading={isFetchingScore} disabled={isPetFeatureDisabled} onClick={() => navigate('/health')} />

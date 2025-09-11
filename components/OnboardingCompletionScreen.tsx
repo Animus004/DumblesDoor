@@ -1,35 +1,14 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import type { Pet } from '../types';
+import Confetti from './Confetti';
 
 interface OnboardingCompletionScreenProps {
   pet: Pet | null;
   onComplete: () => void;
 }
 
-const ConfettiPiece: React.FC<{ style: React.CSSProperties }> = ({ style }) => (
-  <div className="absolute w-2 h-2 rounded-full" style={style}></div>
-);
-
 const OnboardingCompletionScreen: React.FC<OnboardingCompletionScreenProps> = ({ pet, onComplete }) => {
-  const [confetti, setConfetti] = useState<React.CSSProperties[]>([]);
-
   useEffect(() => {
-    const generateConfetti = () => {
-      const newConfetti = Array.from({ length: 100 }).map(() => {
-        const colors = ['#2dd4bf', '#fb7185', '#facc15', '#a78bfa', '#60a5fa'];
-        return {
-          backgroundColor: colors[Math.floor(Math.random() * colors.length)],
-          left: `${Math.random() * 100}%`,
-          animation: `fall ${2 + Math.random() * 3}s linear ${Math.random() * 2}s forwards`,
-          opacity: 0,
-        };
-      });
-      setConfetti(newConfetti);
-    };
-
-    generateConfetti();
-
     const timer = setTimeout(() => {
       onComplete();
     }, 4000); // Auto-redirect after 4 seconds
@@ -38,17 +17,8 @@ const OnboardingCompletionScreen: React.FC<OnboardingCompletionScreenProps> = ({
   }, [onComplete]);
 
   return (
-    <>
-      <style>{`
-        @keyframes fall {
-          0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
-          100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
-        }
-      `}</style>
       <div className="min-h-screen bg-gradient-to-br from-teal-100 to-cyan-100 flex items-center justify-center p-4 overflow-hidden relative">
-        <div className="absolute inset-0 pointer-events-none">
-          {confetti.map((style, index) => <ConfettiPiece key={index} style={style} />)}
-        </div>
+        <Confetti />
         <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-6 text-center z-10">
           <div className="relative w-32 h-32 mx-auto">
             <div className="absolute inset-0 bg-teal-500 rounded-full animate-ping opacity-50"></div>
@@ -72,7 +42,6 @@ const OnboardingCompletionScreen: React.FC<OnboardingCompletionScreenProps> = ({
           </div>
         </div>
       </div>
-    </>
   );
 };
 

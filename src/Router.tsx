@@ -4,7 +4,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Import types
 import type { User } from '@supabase/supabase-js';
-import type { Pet, UserProfile, LogoutAnalytics } from '../types';
+import type { Pet, UserProfile, LogoutAnalytics, HealthCheckResult } from '../types';
 
 // Import screen components
 import HomeScreen from '../components/HomeScreen';
@@ -35,6 +35,11 @@ interface AppRouterProps {
     sessionStartTime: number;
     draftPostContent: string;
     setDraftPostContent: (content: string) => void;
+    isAnalyzing: boolean;
+    analysisResult: HealthCheckResult | null;
+    analysisError: string | null;
+    handleAnalyze: (imageFile: File, notes: string) => void;
+    clearAnalysisState: () => void;
 }
 
 const AppRouter: React.FC<AppRouterProps> = ({
@@ -48,7 +53,12 @@ const AppRouter: React.FC<AppRouterProps> = ({
     onDataUpdate,
     sessionStartTime,
     draftPostContent,
-    setDraftPostContent
+    setDraftPostContent,
+    isAnalyzing,
+    analysisResult,
+    analysisError,
+    handleAnalyze,
+    clearAnalysisState
 }) => {
     if (!user || !profile) {
         return null; // or a loading/error state
@@ -71,7 +81,19 @@ const AppRouter: React.FC<AppRouterProps> = ({
                     draftPostContent={draftPostContent}
                 />
             } />
-            <Route path="/health" element={<HealthCheckScreen pet={activePet} onAnalyze={async () => {}} isChecking={false} result={null} error={null} />} />
+            <Route 
+                path="/health" 
+                element={
+                    <HealthCheckScreen 
+                        pet={activePet} 
+                        onAnalyze={handleAnalyze} 
+                        isChecking={isAnalyzing} 
+                        result={analysisResult} 
+                        error={analysisError}
+                        onClearAnalysis={clearAnalysisState}
+                    />
+                } 
+            />
             <Route path="/essentials" element={<ShopScreen />} />
             <Route path="/vet" element={<VetBookingFlow user={user} pets={pets} />} />
             

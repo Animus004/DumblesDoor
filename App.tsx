@@ -1,10 +1,12 @@
 
+
 // Trigger Vercel deployment
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { HealthCheckResult, GeminiChatMessage, DBChatMessage, Appointment, AIFeedback, TimelineEntry, ActiveModal, Product, PetbookPost, EncyclopediaTopic, Pet, UserProfile, AdoptionListing, AdoptablePet, Shelter, ConnectProfile, AdoptionApplication, LogoutAnalytics, EmergencyContact } from './types';
 import { supabase, bootstrapUserProfile } from './services/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
+import { analyzePetHealth } from './services/geminiService';
 
 import EnvironmentVariablePrompt from './components/ApiKeyPrompt';
 import BottomNav from './components/BottomNav';
@@ -179,6 +181,11 @@ const App: React.FC = () => {
     const [sessionStartTime, setSessionStartTime] = useState(Date.now());
     const [draftPostContent, setDraftPostContent] = useState('');
 
+    // --- Health Check State ---
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisResult, setAnalysisResult] = useState<HealthCheckResult | null>(null);
+    const [analysisError, setAnalysisError] = useState<string | null>(null);
+
     const fetchData = useCallback(async (currentUser: User) => {
         setDataLoading(true);
         setDataError(null);
@@ -255,6 +262,53 @@ const App: React.FC = () => {
         navigate('/');
     };
 
+    const handleAnalyze = async (imageFile: File, notes: string) => {
+        if (!activePet || !user) {
+            setAnalysisError("You must have an active pet selected to perform a health check.");
+            return;
+        }
+        setIsAnalyzing(true);
+        setAnalysisResult(null);
+        setAnalysisError(null);
+
+        const toBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve((reader.result as string).split(',')[1]);
+            reader.onerror = error => reject(error);
+        });
+
+        try {
+            const base64data = await toBase64(imageFile);
+            const petContext = {
+                name: activePet.name,
+                breed: activePet.breed,
+                age: `${new Date().getFullYear() - new Date(activePet.birth_date).getFullYear()} years`,
+            };
+            const result = await analyzePetHealth(base64data, imageFile.type, notes, petContext);
+            setAnalysisResult(result);
+
+            await supabase.from('ai_feedback').insert({
+                pet_id: activePet.id,
+                auth_user_id: user.id,
+                input_data: { notes },
+                ai_response: JSON.stringify(result),
+                status: 'completed',
+            });
+            await fetchData(user);
+        } catch (err: any) {
+            console.error("Analysis failed:", err);
+            setAnalysisError(err.message || "An unknown error occurred during analysis.");
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
+    const clearAnalysisState = () => {
+        setAnalysisResult(null);
+        setAnalysisError(null);
+    };
+
     if (missingKeys.length > 0) return <EnvironmentVariablePrompt missingKeys={missingKeys} />;
     if (authLoading || (user && dataLoading)) return <LoadingScreen />;
     if (dataError) return <AppErrorScreen message={dataError} onRetry={() => user && bootstrapUserProfile(user).then(() => fetchData(user))} />;
@@ -296,6 +350,11 @@ const App: React.FC = () => {
                 sessionStartTime={sessionStartTime}
                 draftPostContent={draftPostContent}
                 setDraftPostContent={setDraftPostContent}
+                isAnalyzing={isAnalyzing}
+                analysisResult={analysisResult}
+                analysisError={analysisError}
+                handleAnalyze={handleAnalyze}
+                clearAnalysisState={clearAnalysisState}
             />
             {showBottomNav && <BottomNav />}
         </div>

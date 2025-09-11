@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Pet, HealthCheckResult, AIFeedback, HealthCategoryAnalysis, CareRecommendation, ActionItem, LocalService } from '../types';
@@ -13,6 +14,7 @@ interface HealthCheckScreenProps {
   isChecking: boolean;
   result: HealthCheckResult | null;
   error: string | null;
+  onClearAnalysis: () => void;
 }
 
 // --- Visual Report Sub-components ---
@@ -135,105 +137,128 @@ const VisualHealthReport: React.FC<{ pet: Pet; result: HealthCheckResult; previo
                      <h3 className="text-lg font-bold text-gray-800 mb-3">Breed Spotlight</h3>
                      <div className="flex items-start gap-4">
                         <div className="bg-gray-100 p-2 rounded-full text-gray-600">{pet.species === 'Dog' ? <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path d="M18 3a1 1 0 00-1.447-.894L8.447 6.106A1 1 0 008 7v1.447A2 2 0 009.447 10h1.106A2 2 0 0012 8.553V7a1 1 0 00.894-.553l4-8zM4.707 12.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414-1.414l-3-3zM4 10a1 1 0 011-1h.5a1 1 0 010 2H5a1 1 0 01-1-1zm3 3a1 1 0 011-1h.5a1 1 0 010 2H8a1 1 0 01-1-1zm3 3a1 1 0 011-1h.5a1 1 0 010 2h-.5a1 1 0 01-1-1z" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3.5a1.5 1.5 0 013 0V4a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3h.5a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-.5a1.5 1.5 0 00-3 0v.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-3a1 1 0 00-1-1h-.5a1.5 1.5 0 010-3H4a1 1 0 001-1V6a1 1 0 011-1h3a1 1 0 001-1v-.5z" /></svg>}</div>
-                         <div>
-                             <p className="font-bold text-gray-800">{result.breedAnalysis.breedName} <span className="text-sm font-normal text-gray-500">({result.breedAnalysis.confidence}% match)</span></p>
-                             <div className="flex flex-wrap gap-1 mt-1">{result.breedAnalysis.characteristics.map(char => <span key={char} className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{char}</span>)}</div>
-                         </div>
+                        <div className="flex-grow">
+                            <p className="font-bold text-gray-800">{result.breedAnalysis.breedName} <span className="text-sm font-normal text-gray-500">(~{result.breedAnalysis.confidence}% confidence)</span></p>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                                {result.breedAnalysis.characteristics.map(char => <span key={char} className="text-xs font-semibold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{char}</span>)}
+                            </div>
+                        </div>
                      </div>
                  </section>
-                <section className="bg-white p-4 rounded-xl shadow-sm report-card-enter" style={{animationDelay: '300ms'}}>
-                    <h3 className="text-lg font-bold text-gray-800 mb-4">Your Care Timeline</h3>
-                    <CareTimeline recommendations={[...result.actionItems, ...result.careRecommendations].sort((a, b) => { const po = { 'High': 0, 'Immediate': 0, 'Medium': 1, 'Routine': 1, 'Low': 2, 'Preventive': 2 }; return po[a.priority as keyof typeof po] - po[b.priority as keyof typeof po]; })} />
+                <section className="report-card-enter" style={{animationDelay: '300ms'}}>
+                    <h3 className="text-lg font-bold text-gray-800 mb-2 px-1">Action Plan</h3>
+                    <div className="bg-white p-4 rounded-xl shadow-sm">
+                        <CareTimeline recommendations={[...result.actionItems, ...result.careRecommendations]} />
+                    </div>
                 </section>
-                {result.productRecommendations?.length && (<section className="bg-white p-4 rounded-xl shadow-sm report-card-enter" style={{animationDelay: '400ms'}}>
-                    <h3 className="text-lg font-bold text-gray-800 mb-3">Recommended Products</h3>
-                    <div className="space-y-3">{result.productRecommendations.map((prod, index) => (<div key={index} className="product-card"><p className="font-bold text-gray-800">{prod.name}</p><p className="text-sm text-gray-600 mb-2">{prod.reason}</p><div className="flex justify-between items-center"><span className="text-sm font-semibold text-gray-700">{prod.estimatedCost}</span><a href="#" onClick={e => {e.preventDefault(); alert('Product search coming soon!')}} className="text-sm font-bold text-teal-600 hover:underline">Find Online</a></div></div>))}</div>
-                </section>)}
-                {result.localServices?.length && (<section className="bg-white p-4 rounded-xl shadow-sm report-card-enter" style={{animationDelay: '500ms'}}>
-                    <h3 className="text-lg font-bold text-gray-800 mb-3">Local Services</h3>
-                    <div className="space-y-3">{result.localServices.map((service, index) => {
-                        const s = ((t: LocalService['type']) => { switch (t) { case 'Veterinary Clinic': case 'Emergency Vet': return { card: 'service-card-vet', text: 'text-blue-600', button: 'bg-blue-100 text-blue-700 hover:bg-blue-200' }; case 'Groomer': return { card: 'service-card-groomer', text: 'text-purple-600', button: 'bg-purple-100 text-purple-700 hover:bg-purple-200' }; case 'Pet Store': return { card: 'service-card-store', text: 'text-emerald-600', button: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' }; default: return { card: 'border-l-4 border-gray-400', text: 'text-gray-600', button: 'bg-gray-100 text-gray-700 hover:bg-gray-200' }; } })(service.type);
-                        return (<div key={index} className={`service-card ${s.card}`}><p className={`text-xs font-semibold ${s.text}`}>{service.type}</p><p className="font-bold text-gray-800">{service.name}</p><p className="text-sm text-gray-600 mb-2">{service.address}</p><div className="flex gap-2"><a href={service.phone ? `tel:${service.phone}` : undefined} onClick={(e) => !service.phone && e.preventDefault()} className={`w-full text-center text-sm font-semibold py-1.5 rounded-md ${s.button} ${!service.phone ? 'opacity-50 cursor-not-allowed' : ''}`}>Call</a><button onClick={() => navigate('/vet')} className={`w-full text-sm font-semibold py-1.5 rounded-md ${s.button}`}>Book Now</button></div></div>)
-                    })}</div>
-                </section>)}
             </main>
-            {showShareToast && <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm font-semibold py-2 px-4 rounded-full shadow-lg z-20 share-toast">Copied to clipboard!</div>}
-            <div className="fixed bottom-0 left-0 right-0 p-3 bg-white/80 backdrop-blur-sm border-t border-gray-200 grid grid-cols-2 gap-2">
-                <button onClick={onBack} className="bg-gray-200 text-gray-800 font-bold py-3 px-4 rounded-lg">Dashboard</button>
-                <button onClick={handleShare} className="bg-teal-500 text-white font-bold py-3 px-4 rounded-lg">Share Update</button>
-            </div>
+             <footer className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-sm border-t z-20 flex gap-4">
+                <button onClick={onBack} className="w-full bg-gray-200 text-gray-800 font-bold py-3 rounded-xl">New Scan</button>
+                <button onClick={handleShare} className="w-full bg-teal-500 text-white font-bold py-3 rounded-xl">Share Report</button>
+            </footer>
+            {showShareToast && <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-full text-sm font-semibold toast-enter-exit">Report link copied to clipboard!</div>}
         </div>
     );
 };
 
-const HealthDashboard: React.FC<{ pet: Pet; history: HealthCheckResult[]; isLoading: boolean; onStartScan: () => void; onViewHistory: (result: HealthCheckResult, previous: HealthCheckResult | null) => void; }> = ({ pet, history, isLoading, onStartScan, onViewHistory }) => (
-    <div className="p-4 space-y-6">
-        <section className="bg-white p-4 rounded-xl shadow-sm text-center">
-            <p className="text-sm text-gray-500">Wellness History for</p>
-            <h2 className="text-2xl font-bold text-gray-800">{pet.name}</h2>
-            <button onClick={onStartScan} className="mt-4 w-full bg-teal-500 text-white font-bold py-3 rounded-lg hover:bg-teal-600">Start New Wellness Scan</button>
-        </section>
-        <section>
-            <h3 className="text-lg font-bold text-gray-800 mb-2 px-1">Health Journey</h3>
-            {isLoading && <div className="text-center text-gray-500">Loading history...</div>}
-            {!isLoading && history.length === 0 && <div className="bg-white p-4 rounded-xl shadow-sm text-center text-sm text-gray-500">No health checks found. Perform a new scan to start tracking {pet.name}'s health journey!</div>}
-            {!isLoading && history.length > 0 && <div className="space-y-2">{history.map((result, index) => <button key={result.reportId || index} onClick={() => onViewHistory(result, history[index + 1] || null)} className="w-full flex items-center justify-between bg-white p-3 rounded-lg shadow-sm hover:bg-gray-50 text-left"><div><p className="font-semibold text-gray-700">Wellness Report</p><p className="text-xs text-gray-500">{new Date(result.analysisDate).toLocaleDateString()}</p></div><div className="flex items-center gap-2"><span className="font-bold text-lg" style={{color: getStatusColor(result.overallHealthScore > 89 ? 'Excellent' : result.overallHealthScore > 69 ? 'Good' : 'Concern').main}}>{result.overallHealthScore}</span><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></div></button>)}</div>}
-        </section>
-    </div>
-);
-
-const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({ pet, onAnalyze, isChecking, result, error }) => {
-  const navigate = useNavigate();
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+// FIX: Implement the main HealthCheckScreen component and add a default export.
+const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({
+  pet,
+  onAnalyze,
+  isChecking,
+  result,
+  error,
+  onClearAnalysis,
+}) => {
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [showCamera, setShowCamera] = useState(false);
-  const [history, setHistory] = useState<HealthCheckResult[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(true);
-  const [viewingResult, setViewingResult] = useState<{current: HealthCheckResult, previous: HealthCheckResult | null} | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null), canvasRef = useRef<HTMLCanvasElement>(null), fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchHistory = async () => {
-        if (!pet) return;
-        setHistoryLoading(true);
-        try {
-            const { data, error } = await supabase.from('ai_feedback').select('ai_response').eq('pet_id', pet.id).order('submitted_at', { ascending: false });
-            if (error) throw error;
-            setHistory((data || []).map(item => JSON.parse(item.ai_response) as HealthCheckResult));
-        } catch (err) { console.error("Failed to fetch health history:", err); }
-        finally { setHistoryLoading(false); }
-    };
-    fetchHistory();
-  }, [pet]);
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
-  useEffect(() => {
-    if (showCamera) startCamera(); else stopCamera();
-    return () => stopCamera();
-  }, [showCamera]);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (imageFile && pet) {
+      onAnalyze(imageFile, notes);
+    }
+  };
 
-  const startCamera = async () => { stopCamera(); setCameraError(null); try { const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); setStream(mediaStream); if (videoRef.current) videoRef.current.srcObject = mediaStream; } catch (err) { console.error("Camera error:", err); setCameraError("Could not access camera. Please enable camera permissions."); } };
-  const stopCamera = () => { if (stream) stream.getTracks().forEach(track => track.stop()); setStream(null); };
-  const handleCapture = () => { if (videoRef.current && canvasRef.current) { const v = videoRef.current, c = canvasRef.current; c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d')?.drawImage(v, 0, 0, v.videoWidth, v.videoHeight); setCapturedImage(c.toDataURL('image/jpeg')); setShowCamera(false); } };
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = (e) => { setCapturedImage(e.target?.result as string); setShowCamera(false); }; reader.readAsDataURL(file); } };
-  const dataURLtoFile = (dataurl: string, filename: string): File => { const arr = dataurl.split(','), mimeMatch = arr[0].match(/:(.*?);/); if (!mimeMatch) throw new Error('Invalid data URL'); const mime = mimeMatch[1], bstr = atob(arr[1]); let n = bstr.length; const u8arr = new Uint8Array(n); while (n--) u8arr[n] = bstr.charCodeAt(n); return new File([u8arr], filename, { type: mime }); }
-  const handleSubmit = () => { if (capturedImage && pet) onAnalyze(dataURLtoFile(capturedImage, `${pet.name}-health-check.jpg`), notes); };
-  const handleBackToDashboard = () => { setViewingResult(null); navigate('/home'); }
+  if (result && pet) {
+    return <VisualHealthReport pet={pet} result={result} onBack={onClearAnalysis} />;
+  }
 
-  if (isChecking) return <div className="fixed inset-0 bg-black z-40 flex flex-col items-center justify-center text-white text-center p-8"><div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div><h3 className="text-xl font-semibold mt-4">Dumble is analyzing...</h3><p className="text-gray-300">Generating your personalized wellness plan. This might take a moment.</p></div>;
-  if (error) return <div className="fixed inset-0 bg-black z-40 flex flex-col items-center justify-center text-white text-center p-8"><div className="text-5xl mb-4">😢</div><h3 className="text-xl font-bold text-red-400">Analysis Failed</h3><p className="text-gray-300 mb-4">{error}</p><button onClick={handleBackToDashboard} className="bg-teal-500 text-white font-bold py-2 px-6 rounded-lg">Back to Dashboard</button></div>;
-  if (viewingResult && pet) return <VisualHealthReport pet={pet} result={viewingResult.current} previousResult={viewingResult.previous} onBack={() => setViewingResult(null)} />;
-  if (result && pet) return <VisualHealthReport pet={pet} result={result} previousResult={history[0]} onBack={handleBackToDashboard} />;
-  if (showCamera || capturedImage) return <div className="fixed inset-0 bg-black z-40 flex flex-col text-white"><header className="p-4 flex items-center justify-between flex-shrink-0 z-10"><button onClick={() => {setShowCamera(false); setCapturedImage(null);}} className="text-white bg-black/30 rounded-full p-2 hover:bg-black/50"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button><h1 className="text-xl font-bold">{capturedImage ? "Confirm Photo" : "Scan Your Pet"}</h1><div className="w-10"></div></header><main className="flex-grow relative flex flex-col justify-center">{capturedImage ? <div className="p-4 flex flex-col justify-center h-full"><img src={capturedImage} alt="Captured pet" className="w-full max-h-[50vh] object-contain rounded-lg" /><div className="mt-4"><label htmlFor="notes" className="block text-white text-sm font-bold mb-2">Any specific concerns?</label><textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full border-gray-500 bg-gray-800 text-white rounded-lg p-2 focus:ring-2 focus:ring-teal-500" placeholder={`e.g., 'He's been scratching his ear a lot.'`}></textarea></div></div> : <div className="relative w-full h-full flex items-center justify-center"><video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />{cameraError && <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-4 text-center text-white">{cameraError}</div>}<div className="absolute inset-0 border-8 border-white/20 rounded-3xl m-4 pointer-events-none"></div></div>}</main><footer className="p-4 flex items-center justify-center gap-8 bg-black/30 backdrop-blur-sm flex-shrink-0 z-10">{capturedImage ? <><button onClick={() => { setCapturedImage(null); setShowCamera(true); }} className="text-white font-semibold py-2 px-4">Retake</button><button onClick={handleSubmit} className="bg-teal-500 text-white font-bold py-3 px-8 rounded-full text-lg">Analyze</button></> : <><input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileSelect} className="hidden" /><button onClick={() => fileInputRef.current?.click()} className="p-3 bg-white/20 rounded-full" aria-label="Upload from gallery"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></button><button onClick={handleCapture} className="w-20 h-20 rounded-full bg-white border-4 border-black/30" aria-label="Capture photo"></button><button onClick={startCamera} className="p-3 bg-white/20 rounded-full" aria-label="Refresh camera"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M20 4v5h-5M4 20v-5h5" /></svg></button></>}</footer><canvas ref={canvasRef} className="hidden"></canvas></div>;
-  
+  if (isChecking) {
+    return (
+        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center text-center p-8">
+            <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-teal-500"></div>
+            <h2 className="mt-6 text-xl font-bold text-gray-800">Analyzing {pet?.name}'s photo...</h2>
+            <p className="text-gray-600 mt-2 max-w-sm">This may take a moment. Our AI is checking for key health indicators like coat condition, eye clarity, and body posture.</p>
+        </div>
+    );
+  }
+
   return (
-    <div className="bg-gray-100 min-h-screen flex flex-col">
-        <header className="p-4 flex items-center border-b bg-white sticky top-0 z-10">
-            <button onClick={() => navigate(-1)} className="mr-4 text-gray-600 hover:text-gray-900"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
-            <h1 className="text-xl font-bold">Health Dashboard</h1>
-        </header>
-        <main className="flex-grow">{pet ? <HealthDashboard pet={pet} history={history} isLoading={historyLoading} onStartScan={() => setShowCamera(true)} onViewHistory={(current, previous) => setViewingResult({current, previous})} /> : <div className="p-8 text-center text-gray-500"><p>Please select a pet from your profile to view their health dashboard.</p></div>}</main>
+    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+      <header className="p-4 flex items-center border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+        <button onClick={() => navigate(-1)} className="mr-4 text-gray-600 hover:text-gray-900"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
+        <h1 className="text-xl font-bold">AI Health Check</h1>
+      </header>
+
+      {!pet ? (
+         <div className="flex-grow flex flex-col items-center justify-center p-4 text-center">
+             <div className="text-4xl mb-4">🐾</div>
+             <h2 className="text-xl font-bold text-gray-800">No Pet Selected</h2>
+             <p className="text-gray-600 mt-2">Please add or select a pet from your profile to perform a health check.</p>
+             <button onClick={() => navigate('/profile')} className="mt-4 bg-teal-500 text-white font-bold py-2 px-4 rounded-lg">Go to Profile</button>
+         </div>
+      ) : (
+        <main className="flex-grow p-4 md:p-6">
+          <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-xl shadow-sm max-w-lg mx-auto">
+            <div className="text-center">
+                <h2 className="text-2xl font-bold text-gray-800">Wellness Scan for {pet.name}</h2>
+                <p className="text-gray-600 mt-1">Upload a clear, well-lit photo of your pet for analysis.</p>
+            </div>
+            
+            <div className="flex flex-col items-center">
+              <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageChange} className="hidden" id="pet-photo-upload" />
+              <label htmlFor="pet-photo-upload" className="w-full h-48 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-gray-500 hover:border-teal-500 hover:text-teal-600 cursor-pointer bg-gray-50 transition-colors">
+                {imagePreview ? (
+                  <img src={imagePreview} alt="Pet preview" className="w-full h-full object-contain rounded-lg p-1" />
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    <span>Click to upload a photo</span>
+                    <span className="text-xs mt-1">(e.g., side view, face, or specific area of concern)</span>
+                  </>
+                )}
+              </label>
+            </div>
+            
+            <div>
+              <label htmlFor="notes" className="font-semibold text-gray-700">Additional Notes (Optional)</label>
+              <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="e.g., My dog has been scratching his left ear a lot." className="w-full mt-2 p-2 border rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"></textarea>
+            </div>
+            
+            {error && <p className="text-red-600 bg-red-50 p-3 rounded-md text-center text-sm font-semibold">{error}</p>}
+            
+            <button type="submit" disabled={!imageFile || isChecking} className="w-full bg-teal-500 text-white font-bold py-3 rounded-lg disabled:opacity-50 transition-colors hover:bg-teal-600">
+              {isChecking ? 'Analyzing...' : 'Start Analysis'}
+            </button>
+          </form>
+        </main>
+      )}
     </div>
   );
 };

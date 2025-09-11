@@ -47,12 +47,19 @@ export const bootstrapUserProfile = async (user: User) => {
 
     // At this point, we know no profile exists and there wasn't a database error.
     // Let's create the profile.
+    if (!user.email) {
+        console.error("Cannot create profile for user without an email.");
+        return;
+    }
+    
     const { error: insertError } = await supabase
         .from('user_profiles')
         .insert({
             auth_user_id: user.id,
-            email: user.email!, // Assume email is always present for a new user
-            name: '',
+            email: user.email,
+            // For OAuth providers like Google, pre-fill the name from metadata.
+            // This prevents issues if the DB has a check constraint for non-empty names.
+            name: user.user_metadata?.full_name || user.user_metadata?.name || '',
             city: '',
             phone: null,
             role: 'user',

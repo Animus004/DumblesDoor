@@ -20,7 +20,7 @@ import ConnectScreen from '../components/ConnectScreen';
 // FIX: The component now has a default export, so this import will work.
 import AdminDashboardScreen from '../components/AdminDashboardScreen';
 import { AdoptionScreen, PetDetailScreen, AdoptionApplicationScreen, MyApplicationsScreen } from '../components/AdoptionScreens';
-import ChatScreen from '../components/ChatScreen';
+import ChatScreen from './components/ChatScreen';
 
 
 interface AppRouterProps {

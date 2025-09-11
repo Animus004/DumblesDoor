@@ -1,10 +1,16 @@
 
 
+
+
+
+
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { NearbyVet, Vet, VetService, Pet, Appointment } from '../types';
+import VetProfileScreen from './VetProfileScreen';
 
 const QUICK_BOOK_SERVICES = [
     { name: 'Checkup', icon: '🩺', keyword: 'Consultation' },
@@ -74,7 +80,8 @@ const VetSearchScreen = ({ onSelectVet, emergencyMode, onExitEmergencyMode }: { 
     }, []);
 
     useEffect(() => {
-        if (!loading) setFilteredVets(allVets.filter(v => emergencyMode ? v.is_24_7 : !quickFilter || v.services?.some(s => s.name.toLowerCase().includes(quickFilter.toLowerCase()))));
+        // FIX: Add Array.isArray check for `v.services` because Supabase might return a single object instead of an array for to-many relationships.
+        if (!loading) setFilteredVets(allVets.filter(v => emergencyMode ? v.is_24_7 : !quickFilter || (Array.isArray(v.services) && v.services.some(s => s.name.toLowerCase().includes(quickFilter.toLowerCase())))));
     }, [allVets, loading, quickFilter, emergencyMode]);
     
     if (loading) return <div className="p-8 text-center"><div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div><p className="mt-2 text-gray-600">Finding best vets for you...</p></div>;
@@ -89,28 +96,6 @@ const VetSearchScreen = ({ onSelectVet, emergencyMode, onExitEmergencyMode }: { 
             {error && <p className="text-red-500 bg-red-50 text-center p-3 rounded-md">{error}</p>}
             {!loading && filteredVets.length === 0 && <div className="text-center text-gray-500 pt-8"><p className="font-semibold">No Approved Vets Found</p><p>We are currently onboarding professionals in your area. Please check back soon!</p></div>}
             <div className="space-y-4">{filteredVets.map(vet => <VetCard key={vet.id} vet={vet} onSelect={() => onSelectVet(vet)} isEmergency={emergencyMode} />)}</div>
-        </div>
-    );
-};
-
-const VetProfileScreen = ({ vet, onBookNow }: { vet: Vet, onBookNow: (vet: Vet) => void }) => {
-    const InfoCard: React.FC<{ icon: React.ReactNode; title: string; children: React.ReactNode; }> = ({ icon, title, children }) => (
-        <div className="bg-white p-4 rounded-xl shadow-sm"><div className="flex items-center gap-3 mb-3"><div className="bg-gray-100 text-gray-600 rounded-lg p-2">{icon}</div><h3 className="text-lg font-bold text-gray-800">{title}</h3></div>{children}</div>
-    );
-    
-    // FIX: The 'vet.photo_gallery' property from the database might not be an array, leading to runtime errors.
-    // Using Array.isArray ensures we safely handle null or non-array values before accessing array properties.
-    const galleryImages = (Array.isArray(vet.photo_gallery) && vet.photo_gallery.length > 0)
-        ? vet.photo_gallery
-        : [vet.photo_url || 'https://i.ibb.co/1M2g1CH/clinic-1.jpg'];
-
-    return (
-         <div className="bg-gray-50">
-            <main className="pb-24">
-                <div className="w-full h-48 bg-gray-200 overflow-x-auto flex snap-x snap-mandatory">{galleryImages.map((url, i) => <img key={i} src={url!} alt={`Clinic photo ${i + 1}`} className="w-full h-full object-cover flex-shrink-0 snap-center" />)}</div>
-                <div className="p-4 -mt-12"><div className="bg-white p-4 rounded-xl shadow-lg relative"><div className="flex gap-2 absolute top-3 right-3">{vet.verified && <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-semibold">Verified</div>}{vet.is_24_7 && <div className="flex items-center gap-1 bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-semibold">24/7</div>}</div><h2 className="text-2xl font-bold mt-2">{vet.name}</h2><p className="text-gray-500">{vet.specialization?.join(', ')}</p><div className="mt-3 grid grid-cols-2 gap-2"><a href={`tel:${vet.phone}`} className="w-full text-center bg-teal-500 text-white font-bold py-2 rounded-lg text-sm">Call Clinic</a><a href={`https://maps.google.com/?q=${encodeURIComponent(vet.address)}`} target="_blank" rel="noopener noreferrer" className="w-full text-center bg-gray-200 text-gray-800 font-bold py-2 rounded-lg text-sm">Get Directions</a></div></div><div className="mt-4 space-y-4"><InfoCard icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>} title="About"><p className="text-sm text-gray-600 whitespace-pre-wrap">{vet.bio}</p></InfoCard></div></div>
-            </main>
-            <footer className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-sm border-t z-20"><button onClick={() => onBookNow(vet)} className="w-full bg-teal-500 text-white font-bold py-4 rounded-xl text-lg hover:bg-teal-600 transition-transform transform active:scale-95">Book Appointment</button></footer>
         </div>
     );
 };
@@ -148,7 +133,7 @@ const BookingScreen: React.FC<{ vet: Vet; pets: Pet[]; user: User; onBookingConf
         <div className="p-4 space-y-4">
             <BookingProgress step={step} />
             {error && <p className="text-red-600 bg-red-50 p-3 rounded-md text-center text-sm">{error}</p>}
-            {step === 1 && (<><div className="mt-4"><h3 className="font-bold text-lg mb-2">1. Select your pet</h3><div className="flex gap-4 overflow-x-auto pb-2">{pets.map(pet => <button key={pet.id} onClick={() => setSelectedPet(pet)} className={`flex-shrink-0 text-center p-2 border-2 rounded-lg ${selectedPet?.id === pet.id ? 'border-teal-500 bg-teal-50' : 'border-transparent'}`}><img src={pet.photo_url} alt={pet.name} className="w-16 h-16 rounded-full object-cover"/><p className="text-sm font-semibold mt-1">{pet.name}</p></button>)}</div></div><div><h3 className="font-bold text-lg mb-2">2. Choose a service</h3><div className="space-y-2">{vet.services && vet.services.length > 0 ? vet.services.map(s => <button key={s.id} onClick={() => setSelectedService(s)} className={`w-full text-left p-3 rounded-lg border-2 ${selectedService?.id === s.id ? 'border-teal-500 bg-teal-50' : 'bg-white'}`}><div className="flex justify-between items-center"><div><p className="font-semibold">{s.name}</p><p className="text-sm text-gray-500">{s.duration_minutes} min</p></div><p className="font-bold text-teal-600">₹{s.price}</p></div></button>) : <p className="text-sm text-gray-500 bg-gray-100 p-3 rounded-md">This veterinarian has not listed any specific services yet. You can book a 'General Consultation'.</p>}</div></div><button onClick={() => setStep(2)} disabled={!selectedPet || !selectedService} className="w-full bg-teal-500 text-white font-bold py-3 rounded-lg disabled:opacity-50 mt-4">Next: Choose Date & Time</button></>)}
+            {step === 1 && (<><div className="mt-4"><h3 className="font-bold text-lg mb-2">1. Select your pet</h3><div className="flex gap-4 overflow-x-auto pb-2">{pets.map(pet => <button key={pet.id} onClick={() => setSelectedPet(pet)} className={`flex-shrink-0 text-center p-2 border-2 rounded-lg ${selectedPet?.id === pet.id ? 'border-teal-500 bg-teal-50' : 'border-transparent'}`}><img src={pet.photo_url} alt={pet.name} className="w-16 h-16 rounded-full object-cover"/><p className="text-sm font-semibold mt-1">{pet.name}</p></button>)}</div></div><div><h3 className="font-bold text-lg mb-2">2. Choose a service</h3><div className="space-y-2">{vet.services && Array.isArray(vet.services) && vet.services.length > 0 ? vet.services.map(s => <button key={s.id} onClick={() => setSelectedService(s)} className={`w-full text-left p-3 rounded-lg border-2 ${selectedService?.id === s.id ? 'border-teal-500 bg-teal-50' : 'bg-white'}`}><div className="flex justify-between items-center"><div><p className="font-semibold">{s.name}</p><p className="text-sm text-gray-500">{s.duration_minutes} min</p></div><p className="font-bold text-teal-600">₹{s.price}</p></div></button>) : <p className="text-sm text-gray-500 bg-gray-100 p-3 rounded-md">This veterinarian has not listed any specific services yet. You can book a 'General Consultation'.</p>}</div></div><button onClick={() => setStep(2)} disabled={!selectedPet || !selectedService} className="w-full bg-teal-500 text-white font-bold py-3 rounded-lg disabled:opacity-50 mt-4">Next: Choose Date & Time</button></>)}
             {step === 2 && (<><WeekCalendar selectedDate={selectedDate} onDateSelect={setSelectedDate} /> {Object.entries(timeSlots).map(([period, slots]) => slots.length > 0 && <div key={period}><h4 className="font-bold capitalize mt-4 mb-2">{period}</h4><div className="grid grid-cols-3 gap-2">{slots.map(time => <button key={time} onClick={() => { setSelectedTime(time); setStep(3);}} className="p-3 bg-teal-100 text-teal-700 font-semibold rounded-lg text-center hover:bg-teal-200">{time}</button>)}</div></div>)}{(timeSlots.morning.length + timeSlots.afternoon.length + timeSlots.evening.length) === 0 && <p className="text-center text-gray-500 mt-4">No available slots. Try another day.</p>}<button onClick={() => setStep(1)} className="w-full bg-gray-200 font-bold py-3 rounded-lg mt-4">Back</button></>)}
             {step === 3 && (<div className="space-y-4"><div className="bg-white p-4 rounded-lg shadow-sm space-y-3"><p><strong>Pet:</strong> {selectedPet?.name}</p><p><strong>Vet:</strong> {vet.name}</p><p><strong>Service:</strong> {selectedService?.name}</p><p><strong>When:</strong> {selectedDate?.toLocaleDateString('en-IN', { dateStyle: 'full' })} at {selectedTime}</p><p><strong>Total:</strong> <span className="font-bold">₹{selectedService?.price}</span></p></div><button onClick={handleConfirm} className="w-full bg-teal-500 text-white font-bold py-3 rounded-lg">Confirm & Pay</button><button onClick={() => setStep(2)} className="w-full bg-gray-200 font-bold py-3 rounded-lg">Change Time</button></div>)}
         </div>

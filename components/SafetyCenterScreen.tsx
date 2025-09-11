@@ -1,6 +1,9 @@
-import React from 'react';
 
-const SafetyCenterScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+
+const SafetyCenterScreen: React.FC = () => {
+    const navigate = useNavigate();
 
     const SafetyTip: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
         <div className="bg-gray-100 p-4 rounded-lg">
@@ -12,7 +15,7 @@ const SafetyCenterScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     return (
         <div className="min-h-screen flex flex-col bg-gray-50">
             <header className="p-4 flex items-center border-b bg-white sticky top-0 z-10">
-                <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900">
+                <button onClick={() => navigate(-1)} className="mr-4 text-gray-600 hover:text-gray-900">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
                 <h1 className="text-xl font-bold">Safety Center</h1>

@@ -1,5 +1,7 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import type { Pet, HealthCheckResult, AIFeedback, HealthCategoryAnalysis, CareRecommendation, ActionItem, LocalService, ActiveScreen } from '../types';
+import { useNavigate } from 'react-router-dom';
+import type { Pet, HealthCheckResult, AIFeedback, HealthCategoryAnalysis, CareRecommendation, ActionItem, LocalService } from '../types';
 import { supabase } from '../services/supabaseClient';
 import Tooltip from './Tooltip';
 import Confetti from './Confetti';
@@ -7,12 +9,10 @@ import Confetti from './Confetti';
 
 interface HealthCheckScreenProps {
   pet: Pet | null;
-  onBack: () => void;
   onAnalyze: (imageFile: File, notes: string) => void;
   isChecking: boolean;
   result: HealthCheckResult | null;
   error: string | null;
-  onNavigate: (screen: ActiveScreen) => void;
 }
 
 // --- Visual Report Sub-components ---
@@ -41,121 +41,71 @@ const CARE_ICONS: { [key: string]: React.ReactNode } = {
 };
 
 
-const VisualHealthReport: React.FC<{ pet: Pet; result: HealthCheckResult; previousResult?: HealthCheckResult | null; onBack: () => void; onNavigate: (screen: ActiveScreen) => void; }> = ({ pet, result, previousResult, onBack, onNavigate }) => {
+const VisualHealthReport: React.FC<{ pet: Pet; result: HealthCheckResult; previousResult?: HealthCheckResult | null; onBack: () => void; }> = ({ pet, result, previousResult, onBack }) => {
+    const navigate = useNavigate();
     const [showCelebration, setShowCelebration] = useState(false);
     const [showShareToast, setShowShareToast] = useState(false);
     
     useEffect(() => {
-        if (result.overallHealthScore >= 90) {
-            setShowCelebration(true);
-        }
+        if (result.overallHealthScore >= 90) setShowCelebration(true);
     }, [result.overallHealthScore]);
     
     const handleShare = () => {
-        const summary = `🐾 Great news! ${pet.name} just had a wellness check and scored ${result.overallHealthScore}/100! We're staying on top of their health journey. #PetHealth #HappyPet #${pet.breed.replace(/\s+/g, '')}`;
-        navigator.clipboard.writeText(summary);
+        navigator.clipboard.writeText(`🐾 Great news! ${pet.name} just had a wellness check and scored ${result.overallHealthScore}/100! We're staying on top of their health journey. #PetHealth #HappyPet #${pet.breed.replace(/\s+/g, '')}`);
         setShowShareToast(true);
         setTimeout(() => setShowShareToast(false), 2800);
     };
 
     const HealthScoreGauge: React.FC<{ score: number }> = ({ score }) => {
-        const radius = 55;
-        const circumference = 2 * Math.PI * radius;
-        const offset = circumference - (score / 100) * circumference;
+        const radius = 55, circumference = 2 * Math.PI * radius, offset = circumference - (score / 100) * circumference;
         const scoreColor = getStatusColor(score > 89 ? 'Excellent' : score > 69 ? 'Good' : 'Concern').main;
-        
         return (
              <div className="relative w-48 h-48">
                 <svg className="w-full h-full" viewBox="0 0 120 120">
                     <circle className="health-score-gauge-bg" strokeWidth="10" cx="60" cy="60" r={radius} />
-                    <circle
-                        className="health-score-gauge-progress"
-                        strokeWidth="10"
-                        cx="60" cy="60" r={radius}
-                        style={{
-                            strokeDasharray: circumference,
-                            '--circumference': circumference,
-                            '--progress-offset': offset,
-                            stroke: scoreColor,
-                        } as React.CSSProperties}
-                    />
+                    <circle className="health-score-gauge-progress" strokeWidth="10" cx="60" cy="60" r={radius} style={{ strokeDasharray: circumference, '--circumference': circumference, '--progress-offset': offset, stroke: scoreColor } as React.CSSProperties} />
                 </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-5xl font-bold" style={{ color: scoreColor }}>
-                        {score}
-                    </span>
-                    <span className="text-sm text-gray-500 -mt-1">/ 100</span>
-                </div>
+                <div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-5xl font-bold" style={{ color: scoreColor }}>{score}</span><span className="text-sm text-gray-500 -mt-1">/ 100</span></div>
             </div>
         );
     };
 
     const HealthAreaCard: React.FC<{ item: HealthCategoryAnalysis, previousItem?: HealthCategoryAnalysis }> = ({ item, previousItem }) => {
-        const radius = 22;
-        const circumference = 2 * Math.PI * radius;
-        const offset = circumference - (item.score / 100) * circumference;
-        const color = getStatusColor(item.status).main;
-        const bgColor = getStatusColor(item.status).bg;
-
+        const radius = 22, circumference = 2 * Math.PI * radius, offset = circumference - (item.score / 100) * circumference;
+        const color = getStatusColor(item.status).main, bgColor = getStatusColor(item.status).bg;
         const ScoreTrend: React.FC<{ current: number; previous?: number }> = ({ current, previous }) => {
             if (previous === undefined || previous === null) return null;
             const diff = current - previous;
             if (diff === 0) return <span className="text-xs font-bold score-trend-same">(+/-0)</span>;
-            const trendClass = diff > 0 ? 'score-trend-up' : 'score-trend-down';
-            const symbol = diff > 0 ? '▲' : '▼';
+            const trendClass = diff > 0 ? 'score-trend-up' : 'score-trend-down', symbol = diff > 0 ? '▲' : '▼';
             return <span className={`text-xs font-bold ${trendClass}`}>({symbol}{Math.abs(diff)})</span>
         };
-        
         return (
              <div className="bg-white p-3 rounded-xl shadow-sm flex items-center gap-3 report-card-enter">
                 <div className="relative w-12 h-12 flex-shrink-0">
-                    <svg className="w-full h-full" viewBox="0 0 50 50">
-                        <circle className="progress-ring-bg" strokeWidth="5" cx="25" cy="25" r={radius} />
-                        <circle className="progress-ring-progress" strokeWidth="5" cx="25" cy="25" r={radius} style={{ strokeDasharray: circumference, strokeDashoffset: offset, stroke: color }} />
-                    </svg>
+                    <svg className="w-full h-full" viewBox="0 0 50 50"><circle className="progress-ring-bg" strokeWidth="5" cx="25" cy="25" r={radius} /><circle className="progress-ring-progress" strokeWidth="5" cx="25" cy="25" r={radius} style={{ strokeDasharray: circumference, strokeDashoffset: offset, stroke: color }} /></svg>
                     <span className="absolute inset-0 flex items-center justify-center text-sm font-bold" style={{ color: color }}>{item.score}</span>
                 </div>
-                <div className="flex-grow">
-                    <p className="font-bold text-gray-800">{item.category}</p>
-                    <div className="flex items-center gap-2">
-                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full`} style={{ color, backgroundColor: bgColor }}>{item.status}</span>
-                        <ScoreTrend current={item.score} previous={previousItem?.score} />
-                    </div>
-                </div>
+                <div className="flex-grow"><p className="font-bold text-gray-800">{item.category}</p><div className="flex items-center gap-2"><span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full`} style={{ color, backgroundColor: bgColor }}>{item.status}</span><ScoreTrend current={item.score} previous={previousItem?.score} /></div></div>
             </div>
         );
     };
     
-    const getDifficultyStyle = (difficulty: 'Easy DIY' | 'Moderate' | 'Professional Help Required' | string): string => {
-        switch (difficulty) {
-            case 'Easy DIY': return 'difficulty-badge-easy';
-            case 'Moderate': return 'difficulty-badge-moderate';
-            case 'Professional Help Required': return 'difficulty-badge-professional';
-            default: return 'bg-gray-100 text-gray-800';
-        }
-    };
-
-    const DifficultyBadge: React.FC<{ difficulty: string }> = ({ difficulty }) => {
-        return <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getDifficultyStyle(difficulty)}`}>{difficulty}</span>;
-    };
+    const getDifficultyStyle = (difficulty: string) => (difficulty === 'Easy DIY' ? 'difficulty-badge-easy' : difficulty === 'Moderate' ? 'difficulty-badge-moderate' : 'difficulty-badge-professional');
+    const DifficultyBadge: React.FC<{ difficulty: string }> = ({ difficulty }) => <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getDifficultyStyle(difficulty)}`}>{difficulty}</span>;
 
     const CareTimeline: React.FC<{ recommendations: (CareRecommendation | ActionItem)[] }> = ({ recommendations }) => (
         <div className="care-timeline">
             {recommendations.map((item, index) => (
                 <div key={index} className="timeline-item">
-                    <div className="timeline-icon-container" style={{borderColor: getStatusColor(item.priority === 'High' || item.priority === 'Immediate' ? 'Concern' : 'Good').main}}>
-                        <div className="h-5 w-5 text-gray-600">{CARE_ICONS[item.icon_name || 'default']}</div>
-                    </div>
+                    <div className="timeline-icon-container" style={{borderColor: getStatusColor(item.priority === 'High' || item.priority === 'Immediate' ? 'Concern' : 'Good').main}}><div className="h-5 w-5 text-gray-600">{CARE_ICONS[item.icon_name || 'default']}</div></div>
                     <div className="pl-4">
                         <p className="font-bold text-gray-800">{item.title}</p>
                         <p className="text-sm text-gray-600">{'guidance' in item ? item.guidance : item.details}</p>
                         <div className="flex items-center flex-wrap gap-2 mt-2">
                             {'difficulty' in item && item.difficulty && <DifficultyBadge difficulty={item.difficulty} />}
                             {item.estimatedCost && <span className="text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">Est: {item.estimatedCost}</span>}
-                             <button onClick={() => alert(`Reminder set for: ${item.title}`)} className="text-xs font-semibold text-teal-600 hover:text-teal-800 flex items-center gap-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
-                                Set Reminder
-                            </button>
+                             <button onClick={() => alert(`Reminder set for: ${item.title}`)} className="text-xs font-semibold text-teal-600 hover:text-teal-800 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>Set Reminder</button>
                         </div>
                     </div>
                 </div>
@@ -167,12 +117,9 @@ const VisualHealthReport: React.FC<{ pet: Pet; result: HealthCheckResult; previo
         <div className="bg-gray-50 min-h-full flex flex-col font-sans" style={{animation: 'fade-in 0.5s ease-out'}}>
              {showCelebration && <Confetti />}
             <header className="p-4 flex items-center border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-                <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                </button>
+                <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
                 <h1 className="text-xl font-bold">Wellness Story</h1>
             </header>
-
             <main className="flex-grow p-4 space-y-4 overflow-y-auto pb-24">
                 <section className="bg-white p-4 rounded-xl shadow-sm report-card-enter flex flex-col items-center">
                      <img src={pet.photo_url} alt={pet.name} className="w-24 h-24 rounded-full object-cover border-4 border-white -mt-16 shadow-lg" />
@@ -180,100 +127,37 @@ const VisualHealthReport: React.FC<{ pet: Pet; result: HealthCheckResult; previo
                      <HealthScoreGauge score={result.overallHealthScore} />
                      <p className="text-sm text-gray-600 text-center max-w-xs">{result.executiveSummary}</p>
                 </section>
-                
                 <section className="report-card-enter" style={{animationDelay: '100ms'}}>
                     <h3 className="text-lg font-bold text-gray-800 mb-2 px-1">Key Health Areas</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                         {result.healthAssessment.map(item => {
-                             const previousItem = previousResult?.healthAssessment.find(p => p.category === item.category);
-                             return <HealthAreaCard key={item.category} item={item} previousItem={previousItem} />
-                         })}
-                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{result.healthAssessment.map(item => <HealthAreaCard key={item.category} item={item} previousItem={previousResult?.healthAssessment.find(p => p.category === item.category)} />)}</div>
                 </section>
-                
                  <section className="bg-white p-4 rounded-xl shadow-sm report-card-enter" style={{animationDelay: '200ms'}}>
                      <h3 className="text-lg font-bold text-gray-800 mb-3">Breed Spotlight</h3>
                      <div className="flex items-start gap-4">
-                        <div className="bg-gray-100 p-2 rounded-full text-gray-600">
-                            {pet.species === 'Dog' ? <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path d="M18 3a1 1 0 00-1.447-.894L8.447 6.106A1 1 0 008 7v1.447A2 2 0 009.447 10h1.106A2 2 0 0012 8.553V7a1 1 0 00.894-.553l4-8zM4.707 12.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414-1.414l-3-3zM4 10a1 1 0 011-1h.5a1 1 0 010 2H5a1 1 0 01-1-1zm3 3a1 1 0 011-1h.5a1 1 0 010 2H8a1 1 0 01-1-1zm3 3a1 1 0 011-1h.5a1 1 0 010 2h-.5a1 1 0 01-1-1z" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3.5a1.5 1.5 0 013 0V4a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3h.5a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-.5a1.5 1.5 0 00-3 0v.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-3a1 1 0 00-1-1h-.5a1.5 1.5 0 010-3H4a1 1 0 001-1V6a1 1 0 011-1h3a1 1 0 001-1v-.5z" /></svg>}
-                        </div>
+                        <div className="bg-gray-100 p-2 rounded-full text-gray-600">{pet.species === 'Dog' ? <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path d="M18 3a1 1 0 00-1.447-.894L8.447 6.106A1 1 0 008 7v1.447A2 2 0 009.447 10h1.106A2 2 0 0012 8.553V7a1 1 0 00.894-.553l4-8zM4.707 12.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414-1.414l-3-3zM4 10a1 1 0 011-1h.5a1 1 0 010 2H5a1 1 0 01-1-1zm3 3a1 1 0 011-1h.5a1 1 0 010 2H8a1 1 0 01-1-1zm3 3a1 1 0 011-1h.5a1 1 0 010 2h-.5a1 1 0 01-1-1z" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3.5a1.5 1.5 0 013 0V4a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3h.5a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-.5a1.5 1.5 0 00-3 0v.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-3a1 1 0 00-1-1h-.5a1.5 1.5 0 010-3H4a1 1 0 001-1V6a1 1 0 011-1h3a1 1 0 001-1v-.5z" /></svg>}</div>
                          <div>
                              <p className="font-bold text-gray-800">{result.breedAnalysis.breedName} <span className="text-sm font-normal text-gray-500">({result.breedAnalysis.confidence}% match)</span></p>
-                             <div className="flex flex-wrap gap-1 mt-1">
-                                {result.breedAnalysis.characteristics.map(char => <span key={char} className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{char}</span>)}
-                             </div>
+                             <div className="flex flex-wrap gap-1 mt-1">{result.breedAnalysis.characteristics.map(char => <span key={char} className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{char}</span>)}</div>
                          </div>
                      </div>
                  </section>
-
                 <section className="bg-white p-4 rounded-xl shadow-sm report-card-enter" style={{animationDelay: '300ms'}}>
                     <h3 className="text-lg font-bold text-gray-800 mb-4">Your Care Timeline</h3>
-                    <CareTimeline recommendations={[...result.actionItems, ...result.careRecommendations].sort((a, b) => {
-                        const priorityOrder = { 'High': 0, 'Immediate': 0, 'Medium': 1, 'Routine': 1, 'Low': 2, 'Preventive': 2 };
-                        return priorityOrder[a.priority as keyof typeof priorityOrder] - priorityOrder[b.priority as keyof typeof priorityOrder];
-                    })} />
+                    <CareTimeline recommendations={[...result.actionItems, ...result.careRecommendations].sort((a, b) => { const po = { 'High': 0, 'Immediate': 0, 'Medium': 1, 'Routine': 1, 'Low': 2, 'Preventive': 2 }; return po[a.priority as keyof typeof po] - po[b.priority as keyof typeof po]; })} />
                 </section>
-
-                {result.productRecommendations && result.productRecommendations.length > 0 && (
-                    <section className="bg-white p-4 rounded-xl shadow-sm report-card-enter" style={{animationDelay: '400ms'}}>
-                        <h3 className="text-lg font-bold text-gray-800 mb-3">Recommended Products</h3>
-                        <div className="space-y-3">
-                            {result.productRecommendations.map((prod, index) => (
-                                <div key={index} className="product-card">
-                                    <p className="font-bold text-gray-800">{prod.name}</p>
-                                    <p className="text-sm text-gray-600 mb-2">{prod.reason}</p>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm font-semibold text-gray-700">{prod.estimatedCost}</span>
-                                        <a href="#" onClick={e => {e.preventDefault(); alert('Product search coming soon!')}} className="text-sm font-bold text-teal-600 hover:underline">Find Online</a>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </section>
-                )}
-                
-                {result.localServices && result.localServices.length > 0 && (
-                    <section className="bg-white p-4 rounded-xl shadow-sm report-card-enter" style={{animationDelay: '500ms'}}>
-                        <h3 className="text-lg font-bold text-gray-800 mb-3">Local Services</h3>
-                        <div className="space-y-3">
-                            {result.localServices.map((service, index) => {
-                                const getServiceStyle = (type: LocalService['type']) => {
-                                    switch (type) {
-                                        case 'Veterinary Clinic':
-                                        case 'Emergency Vet':
-                                            return { card: 'service-card-vet', text: 'text-blue-600', button: 'bg-blue-100 text-blue-700 hover:bg-blue-200' };
-                                        case 'Groomer':
-                                            return { card: 'service-card-groomer', text: 'text-purple-600', button: 'bg-purple-100 text-purple-700 hover:bg-purple-200' };
-                                        case 'Pet Store':
-                                            return { card: 'service-card-store', text: 'text-emerald-600', button: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' };
-                                        default:
-                                            return { card: 'border-l-4 border-gray-400', text: 'text-gray-600', button: 'bg-gray-100 text-gray-700 hover:bg-gray-200' };
-                                    }
-                                };
-                                const style = getServiceStyle(service.type);
-                                return (
-                                    <div key={index} className={`service-card ${style.card}`}>
-                                        <p className={`text-xs font-semibold ${style.text}`}>{service.type}</p>
-                                        <p className="font-bold text-gray-800">{service.name}</p>
-                                        <p className="text-sm text-gray-600 mb-2">{service.address}</p>
-                                        <div className="flex gap-2">
-                                            <a href={service.phone ? `tel:${service.phone}` : undefined} onClick={(e) => !service.phone && e.preventDefault()} className={`w-full text-center text-sm font-semibold py-1.5 rounded-md ${style.button} ${!service.phone ? 'opacity-50 cursor-not-allowed' : ''}`}>Call</a>
-                                            <button onClick={() => onNavigate('vet')} className={`w-full text-sm font-semibold py-1.5 rounded-md ${style.button}`}>Book Now</button>
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    </section>
-                )}
+                {result.productRecommendations?.length && (<section className="bg-white p-4 rounded-xl shadow-sm report-card-enter" style={{animationDelay: '400ms'}}>
+                    <h3 className="text-lg font-bold text-gray-800 mb-3">Recommended Products</h3>
+                    <div className="space-y-3">{result.productRecommendations.map((prod, index) => (<div key={index} className="product-card"><p className="font-bold text-gray-800">{prod.name}</p><p className="text-sm text-gray-600 mb-2">{prod.reason}</p><div className="flex justify-between items-center"><span className="text-sm font-semibold text-gray-700">{prod.estimatedCost}</span><a href="#" onClick={e => {e.preventDefault(); alert('Product search coming soon!')}} className="text-sm font-bold text-teal-600 hover:underline">Find Online</a></div></div>))}</div>
+                </section>)}
+                {result.localServices?.length && (<section className="bg-white p-4 rounded-xl shadow-sm report-card-enter" style={{animationDelay: '500ms'}}>
+                    <h3 className="text-lg font-bold text-gray-800 mb-3">Local Services</h3>
+                    <div className="space-y-3">{result.localServices.map((service, index) => {
+                        const s = ((t: LocalService['type']) => { switch (t) { case 'Veterinary Clinic': case 'Emergency Vet': return { card: 'service-card-vet', text: 'text-blue-600', button: 'bg-blue-100 text-blue-700 hover:bg-blue-200' }; case 'Groomer': return { card: 'service-card-groomer', text: 'text-purple-600', button: 'bg-purple-100 text-purple-700 hover:bg-purple-200' }; case 'Pet Store': return { card: 'service-card-store', text: 'text-emerald-600', button: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' }; default: return { card: 'border-l-4 border-gray-400', text: 'text-gray-600', button: 'bg-gray-100 text-gray-700 hover:bg-gray-200' }; } })(service.type);
+                        return (<div key={index} className={`service-card ${s.card}`}><p className={`text-xs font-semibold ${s.text}`}>{service.type}</p><p className="font-bold text-gray-800">{service.name}</p><p className="text-sm text-gray-600 mb-2">{service.address}</p><div className="flex gap-2"><a href={service.phone ? `tel:${service.phone}` : undefined} onClick={(e) => !service.phone && e.preventDefault()} className={`w-full text-center text-sm font-semibold py-1.5 rounded-md ${s.button} ${!service.phone ? 'opacity-50 cursor-not-allowed' : ''}`}>Call</a><button onClick={() => navigate('/vet')} className={`w-full text-sm font-semibold py-1.5 rounded-md ${s.button}`}>Book Now</button></div></div>)
+                    })}</div>
+                </section>)}
             </main>
-            
-            {showShareToast && (
-                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm font-semibold py-2 px-4 rounded-full shadow-lg z-20 share-toast">
-                    Copied to clipboard!
-                </div>
-            )}
-            
+            {showShareToast && <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm font-semibold py-2 px-4 rounded-full shadow-lg z-20 share-toast">Copied to clipboard!</div>}
             <div className="fixed bottom-0 left-0 right-0 p-3 bg-white/80 backdrop-blur-sm border-t border-gray-200 grid grid-cols-2 gap-2">
                 <button onClick={onBack} className="bg-gray-200 text-gray-800 font-bold py-3 px-4 rounded-lg">Dashboard</button>
                 <button onClick={handleShare} className="bg-teal-500 text-white font-bold py-3 px-4 rounded-lg">Share Update</button>
@@ -282,61 +166,24 @@ const VisualHealthReport: React.FC<{ pet: Pet; result: HealthCheckResult; previo
     );
 };
 
+const HealthDashboard: React.FC<{ pet: Pet; history: HealthCheckResult[]; isLoading: boolean; onStartScan: () => void; onViewHistory: (result: HealthCheckResult, previous: HealthCheckResult | null) => void; }> = ({ pet, history, isLoading, onStartScan, onViewHistory }) => (
+    <div className="p-4 space-y-6">
+        <section className="bg-white p-4 rounded-xl shadow-sm text-center">
+            <p className="text-sm text-gray-500">Wellness History for</p>
+            <h2 className="text-2xl font-bold text-gray-800">{pet.name}</h2>
+            <button onClick={onStartScan} className="mt-4 w-full bg-teal-500 text-white font-bold py-3 rounded-lg hover:bg-teal-600">Start New Wellness Scan</button>
+        </section>
+        <section>
+            <h3 className="text-lg font-bold text-gray-800 mb-2 px-1">Health Journey</h3>
+            {isLoading && <div className="text-center text-gray-500">Loading history...</div>}
+            {!isLoading && history.length === 0 && <div className="bg-white p-4 rounded-xl shadow-sm text-center text-sm text-gray-500">No health checks found. Perform a new scan to start tracking {pet.name}'s health journey!</div>}
+            {!isLoading && history.length > 0 && <div className="space-y-2">{history.map((result, index) => <button key={result.reportId || index} onClick={() => onViewHistory(result, history[index + 1] || null)} className="w-full flex items-center justify-between bg-white p-3 rounded-lg shadow-sm hover:bg-gray-50 text-left"><div><p className="font-semibold text-gray-700">Wellness Report</p><p className="text-xs text-gray-500">{new Date(result.analysisDate).toLocaleDateString()}</p></div><div className="flex items-center gap-2"><span className="font-bold text-lg" style={{color: getStatusColor(result.overallHealthScore > 89 ? 'Excellent' : result.overallHealthScore > 69 ? 'Good' : 'Concern').main}}>{result.overallHealthScore}</span><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></div></button>)}</div>}
+        </section>
+    </div>
+);
 
-const HealthDashboard: React.FC<{
-    pet: Pet;
-    history: HealthCheckResult[];
-    isLoading: boolean;
-    onStartScan: () => void;
-    onViewHistory: (result: HealthCheckResult, previous: HealthCheckResult | null) => void;
-}> = ({ pet, history, isLoading, onStartScan, onViewHistory }) => {
-    return (
-         <div className="p-4 space-y-6">
-            <section className="bg-white p-4 rounded-xl shadow-sm text-center">
-                <p className="text-sm text-gray-500">Wellness History for</p>
-                <h2 className="text-2xl font-bold text-gray-800">{pet.name}</h2>
-                <button onClick={onStartScan} className="mt-4 w-full bg-teal-500 text-white font-bold py-3 rounded-lg hover:bg-teal-600">
-                    Start New Wellness Scan
-                </button>
-            </section>
-            
-            <section>
-                <h3 className="text-lg font-bold text-gray-800 mb-2 px-1">Health Journey</h3>
-                {isLoading && <div className="text-center text-gray-500">Loading history...</div>}
-                {!isLoading && history.length === 0 && (
-                     <div className="bg-white p-4 rounded-xl shadow-sm text-center text-sm text-gray-500">
-                        No health checks found. Perform a new scan to start tracking {pet.name}'s health journey!
-                    </div>
-                )}
-                {!isLoading && history.length > 0 && (
-                    <div className="space-y-2">
-                        {history.map((result, index) => (
-                            <button
-                                key={result.reportId || index}
-                                onClick={() => onViewHistory(result, history[index + 1] || null)}
-                                className="w-full flex items-center justify-between bg-white p-3 rounded-lg shadow-sm hover:bg-gray-50 text-left"
-                            >
-                                <div>
-                                    <p className="font-semibold text-gray-700">Wellness Report</p>
-                                    <p className="text-xs text-gray-500">{new Date(result.analysisDate).toLocaleDateString()}</p> 
-                                </div>
-                                <div className="flex items-center gap-2">
-                                     <span className="font-bold text-lg" style={{color: getStatusColor(result.overallHealthScore > 89 ? 'Excellent' : result.overallHealthScore > 69 ? 'Good' : 'Concern').main}}>
-                                        {result.overallHealthScore}
-                                    </span>
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                )}
-            </section>
-        </div>
-    );
-};
-
-
-const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({ pet, onBack, onAnalyze, isChecking, result, error, onNavigate }) => {
+const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({ pet, onAnalyze, isChecking, result, error }) => {
+  const navigate = useNavigate();
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
@@ -345,226 +192,48 @@ const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({ pet, onBack, onAn
   const [history, setHistory] = useState<HealthCheckResult[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [viewingResult, setViewingResult] = useState<{current: HealthCheckResult, previous: HealthCheckResult | null} | null>(null);
-
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null), canvasRef = useRef<HTMLCanvasElement>(null), fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchHistory = async () => {
         if (!pet) return;
         setHistoryLoading(true);
         try {
-            const { data, error } = await supabase
-                .from('ai_feedback')
-                .select('ai_response')
-                .eq('pet_id', pet.id)
-                .order('submitted_at', { ascending: false });
-
+            const { data, error } = await supabase.from('ai_feedback').select('ai_response').eq('pet_id', pet.id).order('submitted_at', { ascending: false });
             if (error) throw error;
-            
-            const parsedHistory = (data || []).map(item => JSON.parse(item.ai_response) as HealthCheckResult);
-            setHistory(parsedHistory);
-        } catch (err) {
-            console.error("Failed to fetch health history:", err);
-        } finally {
-            setHistoryLoading(false);
-        }
+            setHistory((data || []).map(item => JSON.parse(item.ai_response) as HealthCheckResult));
+        } catch (err) { console.error("Failed to fetch health history:", err); }
+        finally { setHistoryLoading(false); }
     };
     fetchHistory();
   }, [pet]);
 
   useEffect(() => {
-    if (showCamera) {
-      startCamera();
-    } else {
-      stopCamera();
-    }
+    if (showCamera) startCamera(); else stopCamera();
     return () => stopCamera();
   }, [showCamera]);
 
-  const startCamera = async () => {
-    stopCamera();
-    setCameraError(null);
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-      }
-    } catch (err) {
-      console.error("Camera error:", err);
-      setCameraError("Could not access camera. Please enable camera permissions.");
-    }
-  };
+  const startCamera = async () => { stopCamera(); setCameraError(null); try { const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); setStream(mediaStream); if (videoRef.current) videoRef.current.srcObject = mediaStream; } catch (err) { console.error("Camera error:", err); setCameraError("Could not access camera. Please enable camera permissions."); } };
+  const stopCamera = () => { if (stream) stream.getTracks().forEach(track => track.stop()); setStream(null); };
+  const handleCapture = () => { if (videoRef.current && canvasRef.current) { const v = videoRef.current, c = canvasRef.current; c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d')?.drawImage(v, 0, 0, v.videoWidth, v.videoHeight); setCapturedImage(c.toDataURL('image/jpeg')); setShowCamera(false); } };
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = (e) => { setCapturedImage(e.target?.result as string); setShowCamera(false); }; reader.readAsDataURL(file); } };
+  const dataURLtoFile = (dataurl: string, filename: string): File => { const arr = dataurl.split(','), mimeMatch = arr[0].match(/:(.*?);/); if (!mimeMatch) throw new Error('Invalid data URL'); const mime = mimeMatch[1], bstr = atob(arr[1]); let n = bstr.length; const u8arr = new Uint8Array(n); while (n--) u8arr[n] = bstr.charCodeAt(n); return new File([u8arr], filename, { type: mime }); }
+  const handleSubmit = () => { if (capturedImage && pet) onAnalyze(dataURLtoFile(capturedImage, `${pet.name}-health-check.jpg`), notes); };
+  const handleBackToDashboard = () => { setViewingResult(null); navigate('/home'); }
 
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
-  };
-
-  const handleCapture = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const context = canvas.getContext('2d');
-      if (context) {
-        context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-        const dataUrl = canvas.toDataURL('image/jpeg');
-        setCapturedImage(dataUrl);
-        setShowCamera(false);
-      }
-    }
-  };
+  if (isChecking) return <div className="fixed inset-0 bg-black z-40 flex flex-col items-center justify-center text-white text-center p-8"><div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div><h3 className="text-xl font-semibold mt-4">Dumble is analyzing...</h3><p className="text-gray-300">Generating your personalized wellness plan. This might take a moment.</p></div>;
+  if (error) return <div className="fixed inset-0 bg-black z-40 flex flex-col items-center justify-center text-white text-center p-8"><div className="text-5xl mb-4">😢</div><h3 className="text-xl font-bold text-red-400">Analysis Failed</h3><p className="text-gray-300 mb-4">{error}</p><button onClick={handleBackToDashboard} className="bg-teal-500 text-white font-bold py-2 px-6 rounded-lg">Back to Dashboard</button></div>;
+  if (viewingResult && pet) return <VisualHealthReport pet={pet} result={viewingResult.current} previousResult={viewingResult.previous} onBack={() => setViewingResult(null)} />;
+  if (result && pet) return <VisualHealthReport pet={pet} result={result} previousResult={history[0]} onBack={handleBackToDashboard} />;
+  if (showCamera || capturedImage) return <div className="fixed inset-0 bg-black z-40 flex flex-col text-white"><header className="p-4 flex items-center justify-between flex-shrink-0 z-10"><button onClick={() => {setShowCamera(false); setCapturedImage(null);}} className="text-white bg-black/30 rounded-full p-2 hover:bg-black/50"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button><h1 className="text-xl font-bold">{capturedImage ? "Confirm Photo" : "Scan Your Pet"}</h1><div className="w-10"></div></header><main className="flex-grow relative flex flex-col justify-center">{capturedImage ? <div className="p-4 flex flex-col justify-center h-full"><img src={capturedImage} alt="Captured pet" className="w-full max-h-[50vh] object-contain rounded-lg" /><div className="mt-4"><label htmlFor="notes" className="block text-white text-sm font-bold mb-2">Any specific concerns?</label><textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full border-gray-500 bg-gray-800 text-white rounded-lg p-2 focus:ring-2 focus:ring-teal-500" placeholder={`e.g., 'He's been scratching his ear a lot.'`}></textarea></div></div> : <div className="relative w-full h-full flex items-center justify-center"><video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />{cameraError && <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-4 text-center text-white">{cameraError}</div>}<div className="absolute inset-0 border-8 border-white/20 rounded-3xl m-4 pointer-events-none"></div></div>}</main><footer className="p-4 flex items-center justify-center gap-8 bg-black/30 backdrop-blur-sm flex-shrink-0 z-10">{capturedImage ? <><button onClick={() => { setCapturedImage(null); setShowCamera(true); }} className="text-white font-semibold py-2 px-4">Retake</button><button onClick={handleSubmit} className="bg-teal-500 text-white font-bold py-3 px-8 rounded-full text-lg">Analyze</button></> : <><input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileSelect} className="hidden" /><button onClick={() => fileInputRef.current?.click()} className="p-3 bg-white/20 rounded-full" aria-label="Upload from gallery"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></button><button onClick={handleCapture} className="w-20 h-20 rounded-full bg-white border-4 border-black/30" aria-label="Capture photo"></button><button onClick={startCamera} className="p-3 bg-white/20 rounded-full" aria-label="Refresh camera"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M20 4v5h-5M4 20v-5h5" /></svg></button></>}</footer><canvas ref={canvasRef} className="hidden"></canvas></div>;
   
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setCapturedImage(e.target?.result as string);
-        setShowCamera(false);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-  
-  const dataURLtoFile = (dataurl: string, filename: string): File => {
-    const arr = dataurl.split(',');
-    const mimeMatch = arr[0].match(/:(.*?);/);
-    if (!mimeMatch) throw new Error('Invalid data URL');
-    const mime = mimeMatch[1];
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
-    }
-    return new File([u8arr], filename, { type: mime });
-  }
-
-  const handleSubmit = () => {
-    if (capturedImage && pet) {
-      const imageFile = dataURLtoFile(capturedImage, `${pet.name}-health-check.jpg`);
-      onAnalyze(imageFile, notes);
-    }
-  };
-  
-  const handleBackToDashboard = () => {
-      setViewingResult(null);
-      onBack();
-  }
-
-  // --- RENDER LOGIC ---
-
-  if (isChecking) {
-    return (
-      <div className="fixed inset-0 bg-black z-40 flex flex-col items-center justify-center text-white text-center p-8">
-        <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div>
-        <h3 className="text-xl font-semibold mt-4">Dumble is analyzing...</h3>
-        <p className="text-gray-300">Generating your personalized wellness plan. This might take a moment.</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="fixed inset-0 bg-black z-40 flex flex-col items-center justify-center text-white text-center p-8">
-        <div className="text-5xl mb-4">😢</div>
-        <h3 className="text-xl font-bold text-red-400">Analysis Failed</h3>
-        <p className="text-gray-300 mb-4">{error}</p>
-        <button onClick={handleBackToDashboard} className="bg-teal-500 text-white font-bold py-2 px-6 rounded-lg">Back to Dashboard</button>
-      </div>
-    );
-  }
-
-  if (viewingResult && pet) {
-      return <VisualHealthReport pet={pet} result={viewingResult.current} previousResult={viewingResult.previous} onBack={() => setViewingResult(null)} onNavigate={onNavigate} />;
-  }
-
-  if (result && pet) {
-    return <VisualHealthReport pet={pet} result={result} previousResult={history[0]} onBack={handleBackToDashboard} onNavigate={onNavigate} />;
-  }
-
-  if (showCamera || capturedImage) {
-      return (
-          <div className="fixed inset-0 bg-black z-40 flex flex-col text-white">
-              <header className="p-4 flex items-center justify-between flex-shrink-0 z-10">
-                  <button onClick={() => {setShowCamera(false); setCapturedImage(null);}} className="text-white bg-black/30 rounded-full p-2 hover:bg-black/50">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                  </button>
-                   <h1 className="text-xl font-bold">{capturedImage ? "Confirm Photo" : "Scan Your Pet"}</h1>
-                  <div className="w-10"></div>
-              </header>
-               <main className="flex-grow relative flex flex-col justify-center">
-                  {capturedImage ? (
-                      <div className="p-4 flex flex-col justify-center h-full">
-                          <img src={capturedImage} alt="Captured pet" className="w-full max-h-[50vh] object-contain rounded-lg" />
-                          <div className="mt-4">
-                              <label htmlFor="notes" className="block text-white text-sm font-bold mb-2">Any specific concerns?</label>
-                              <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full border-gray-500 bg-gray-800 text-white rounded-lg p-2 focus:ring-2 focus:ring-teal-500" placeholder={`e.g., 'He's been scratching his ear a lot.'`}></textarea>
-                          </div>
-                      </div>
-                  ) : (
-                       <div className="relative w-full h-full flex items-center justify-center">
-                           <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-                           {cameraError && <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-4 text-center text-white">{cameraError}</div>}
-                           <div className="absolute inset-0 border-8 border-white/20 rounded-3xl m-4 pointer-events-none"></div>
-                       </div>
-                  )}
-              </main>
-              <footer className="p-4 flex items-center justify-center gap-8 bg-black/30 backdrop-blur-sm flex-shrink-0 z-10">
-                  {capturedImage ? (
-                      <>
-                          <button onClick={() => { setCapturedImage(null); setShowCamera(true); }} className="text-white font-semibold py-2 px-4">Retake</button>
-                          <button onClick={handleSubmit} className="bg-teal-500 text-white font-bold py-3 px-8 rounded-full text-lg">Analyze</button>
-                      </>
-                  ) : (
-                       <>
-                           <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileSelect} className="hidden" />
-                           <button onClick={() => fileInputRef.current?.click()} className="p-3 bg-white/20 rounded-full" aria-label="Upload from gallery">
-                               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                           </button>
-                           <button onClick={handleCapture} className="w-20 h-20 rounded-full bg-white border-4 border-black/30" aria-label="Capture photo"></button>
-                           <button onClick={startCamera} className="p-3 bg-white/20 rounded-full" aria-label="Refresh camera">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M20 4v5h-5M4 20v-5h5" /></svg>
-                           </button>
-                       </>
-                  )}
-              </footer>
-               <canvas ref={canvasRef} className="hidden"></canvas>
-          </div>
-      );
-  }
-
-  // --- Default View: Health Dashboard ---
   return (
     <div className="bg-gray-100 min-h-screen flex flex-col">
         <header className="p-4 flex items-center border-b bg-white sticky top-0 z-10">
-            <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-            </button>
+            <button onClick={() => navigate(-1)} className="mr-4 text-gray-600 hover:text-gray-900"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
             <h1 className="text-xl font-bold">Health Dashboard</h1>
         </header>
-        <main className="flex-grow">
-            {pet ? (
-                <HealthDashboard
-                    pet={pet}
-                    history={history}
-                    isLoading={historyLoading}
-                    onStartScan={() => setShowCamera(true)}
-                    onViewHistory={(current, previous) => setViewingResult({current, previous})}
-                />
-            ) : (
-                <div className="p-8 text-center text-gray-500">
-                    <p>Please select a pet from your profile to view their health dashboard.</p>
-                </div>
-            )}
-        </main>
+        <main className="flex-grow">{pet ? <HealthDashboard pet={pet} history={history} isLoading={historyLoading} onStartScan={() => setShowCamera(true)} onViewHistory={(current, previous) => setViewingResult({current, previous})} /> : <div className="p-8 text-center text-gray-500"><p>Please select a pet from your profile to view their health dashboard.</p></div>}</main>
     </div>
   );
 };

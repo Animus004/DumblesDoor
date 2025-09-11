@@ -1,3 +1,4 @@
+
 import { Database, Json } from './database.types';
 
 // FIX: Export the 'Json' type to make it available to other modules.
@@ -272,7 +273,6 @@ export interface ConnectProfile extends UserProfile {
 
 
 export type ActiveModal = 'chat' | null;
-export type ActiveScreen = 'home' | 'book' | 'connect' | 'vet' | 'profile' | 'health' | 'adoption' | 'admin' | 'essentials' | 'petDetail' | 'adoptionApplication' | 'myApplications' | 'safetyCenter' | 'dataPrivacy' | 'myVetAppointments';
 
 // This type matches the Gemini SDK's expectation for chat history
 export interface GeminiChatMessage {

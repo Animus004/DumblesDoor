@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Product } from '../types';
 import { supabase } from '../services/supabaseClient';
 
-interface ShopScreenProps {
-    onBack: () => void;
-}
+interface ShopScreenProps {}
 
 type Category = 'All' | 'Food' | 'Toys' | 'Grooming' | 'Accessories' | 'Medicine';
 const categories: Category[] = ['All', 'Food', 'Toys', 'Grooming', 'Accessories', 'Medicine'];
@@ -112,7 +111,8 @@ const CartModal: React.FC<{
     );
 };
 
-const ShopScreen: React.FC<ShopScreenProps> = ({ onBack }) => {
+const ShopScreen: React.FC<ShopScreenProps> = () => {
+    const navigate = useNavigate();
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -215,7 +215,7 @@ const ShopScreen: React.FC<ShopScreenProps> = ({ onBack }) => {
         <>
             <div className="min-h-screen flex flex-col bg-gray-50">
                 <header className="p-4 flex items-center border-b bg-white sticky top-0 z-20">
-                    <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900">
+                    <button onClick={() => navigate(-1)} className="mr-4 text-gray-600 hover:text-gray-900">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                     </button>
                     <h1 className="text-xl font-bold">Pet Essentials</h1>

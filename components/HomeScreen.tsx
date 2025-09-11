@@ -1,5 +1,7 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Pet, UserProfile, ActiveScreen, HealthCheckResult } from '../types';
+import { useNavigate } from 'react-router-dom';
+import type { Pet, UserProfile, HealthCheckResult } from '../types';
 import ServiceCard from './ServiceCard';
 import { ICONS } from '../constants';
 import Confetti from './Confetti';
@@ -34,8 +36,8 @@ const WellnessActionButton: React.FC<{
   score: number | null;
   isLoading: boolean;
   disabled: boolean;
-  onNavigate: (screen: ActiveScreen) => void;
-}> = ({ score, isLoading, disabled, onNavigate }) => {
+  onClick: () => void;
+}> = ({ score, isLoading, disabled, onClick }) => {
   const displayScore = isLoading ? '...' : (score ?? '--');
   const circumference = 2 * Math.PI * 65;
   const offset = score ? circumference - (score / 100) * circumference : circumference;
@@ -49,7 +51,7 @@ const WellnessActionButton: React.FC<{
 
   return (
     <button
-      onClick={() => !disabled && onNavigate('health')}
+      onClick={() => !disabled && onClick()}
       disabled={disabled}
       className="relative rounded-full shadow-xl w-36 h-36 flex flex-col items-center justify-center space-y-1 transition-all duration-300 transform focus:outline-none focus:ring-4 focus:ring-white/30 disabled:opacity-50 disabled:cursor-not-allowed enabled:hover:scale-105 interactive-scale"
       style={{
@@ -109,7 +111,6 @@ const useSmartServiceOrdering = (services: any[], pet: Pet | null) => {
         const ageInMonths = calculatePetAgeInMonths(pet.birth_date);
         const sortedServices = [...services];
         
-        // Rule: Prioritize Vet Booking for young pets (under 12 months)
         if (ageInMonths < 12) {
             sortedServices.sort((a, b) => {
                 if (a.title === "Book a Vet") return -1;
@@ -128,16 +129,11 @@ const useSmartServiceOrdering = (services: any[], pet: Pet | null) => {
 const HomeScreenSkeleton: React.FC = () => (
   <div className="min-h-screen w-full animated-gradient p-4 md:p-6">
     <div className="space-y-6 animate-pulse">
-      {/* Title */}
       <div className="h-10 w-3/4 mx-auto bg-white/10 rounded-lg mt-4"></div>
-
-      {/* Main Action */}
       <section className="flex flex-col items-center space-y-4 pt-8">
         <div className="w-44 h-44 bg-white/10 rounded-full"></div>
          <div className="h-5 w-1/2 bg-white/10 rounded-lg mt-2"></div>
       </section>
-
-      {/* Our Services */}
       <section className="space-y-4 pt-8">
         <div className="h-8 w-1/3 bg-white/10 rounded-lg"></div>
         <div className="grid grid-cols-2 gap-4">
@@ -152,14 +148,14 @@ const HomeScreenSkeleton: React.FC = () => (
 
 
 interface HomeScreenProps {
-  onNavigate: (screen: ActiveScreen) => void;
   pet: Pet | null;
   profile: UserProfile | null;
   isLoading: boolean;
   showCelebration: boolean;
 }
 
-const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile, isLoading, showCelebration }) => {
+const HomeScreen: React.FC<HomeScreenProps> = ({ pet, profile, isLoading, showCelebration }) => {
+  const navigate = useNavigate();
   const isPetFeatureDisabled = !pet;
   const carouselRef = React.useRef<HTMLDivElement>(null);
   const [activeServiceIndex, setActiveServiceIndex] = useState(0);
@@ -189,7 +185,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile, isLoa
                 return;
             }
             
-            // The ai_response is a JSON string, so we need to parse it.
             const result: HealthCheckResult = JSON.parse(data.ai_response);
             if (result && typeof result.overallHealthScore === 'number') {
                 setWellnessScore(result.overallHealthScore);
@@ -209,10 +204,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile, isLoa
 
 
   const services = [
-    { title: "AI Health Check", subtitle: "Quick health analysis", icon: ICONS.HEALTH_CHECK, onClick: () => onNavigate('health'), disabled: isPetFeatureDisabled },
-    { title: "Book a Vet", subtitle: "Find trusted vets", icon: ICONS.VET_BOOKING, onClick: () => onNavigate('vet'), disabled: isPetFeatureDisabled },
-    { title: "Marketplace", subtitle: "Pet essentials store", icon: ICONS.PET_ESSENTIALS, onClick: () => onNavigate('essentials'), disabled: false },
-    { title: "PetBook", subtitle: "Community feed", icon: ICONS.PET_BOOK, onClick: () => onNavigate('book'), disabled: isPetFeatureDisabled }
+    { title: "AI Health Check", subtitle: "Quick health analysis", icon: ICONS.HEALTH_CHECK, onClick: () => navigate('/health'), disabled: isPetFeatureDisabled },
+    { title: "Book a Vet", subtitle: "Find trusted vets", icon: ICONS.VET_BOOKING, onClick: () => navigate('/vet'), disabled: isPetFeatureDisabled },
+    { title: "Marketplace", subtitle: "Pet essentials store", icon: ICONS.PET_ESSENTIALS, onClick: () => navigate('/essentials'), disabled: false },
+    { title: "PetBook", subtitle: "Community feed", icon: ICONS.PET_BOOK, onClick: () => navigate('/book'), disabled: isPetFeatureDisabled }
   ];
   
   const orderedServices = useSmartServiceOrdering(services, pet);
@@ -221,7 +216,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile, isLoa
     if (!carouselRef.current) return;
     const scrollLeft = carouselRef.current.scrollLeft;
     const cardWidth = carouselRef.current.children[0]?.clientWidth || 0;
-    const gap = 8; // from `gap-2` -> 0.5rem
+    const gap = 8;
     const index = Math.round(scrollLeft / (cardWidth + gap));
     setActiveServiceIndex(index);
   };
@@ -241,7 +236,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile, isLoa
   return (
     <>
       {showCelebration && <Confetti />}
-      {/* Background elements */}
       <div className="parallax-bg">
           <div className="parallax-layer layer-1"></div>
           <div className="parallax-layer layer-2"></div>
@@ -258,16 +252,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate, pet, profile, isLoa
         <div className="p-4 md:p-6 space-y-8 pb-24">
           <AnimatedGreeting name={profile?.name} />
 
-          {/* Main Action */}
           <section className="flex flex-col items-center space-y-4 pt-6">
-            <WellnessActionButton score={wellnessScore} isLoading={isFetchingScore} disabled={isPetFeatureDisabled} onNavigate={onNavigate} />
+            <WellnessActionButton score={wellnessScore} isLoading={isFetchingScore} disabled={isPetFeatureDisabled} onClick={() => navigate('/health')} />
             <p className="text-sm animate-slide-in h-5" style={{ color: 'var(--color-text-secondary)' }}>
               {isPetFeatureDisabled ? 'Add a pet to get started!' : `How's ${pet?.name} feeling today?`}
             </p>
             <TipOfTheDay />
           </section>
 
-          {/* Our Services */}
           <section className="space-y-4 pt-6">
             <h2 className="font-poppins text-2xl font-bold" style={{ color: 'var(--color-text-primary)'}}>Our Services</h2>
             <div ref={carouselRef} className="service-carousel -mx-4 px-4 flex gap-2">

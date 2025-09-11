@@ -1,6 +1,5 @@
 
-
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Pet, HealthCheckResult, AIFeedback, HealthCategoryAnalysis, CareRecommendation, ActionItem, LocalService } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -161,7 +160,6 @@ const VisualHealthReport: React.FC<{ pet: Pet; result: HealthCheckResult; previo
     );
 };
 
-// FIX: Implement the main HealthCheckScreen component and add a default export.
 const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({
   pet,
   onAnalyze,
@@ -173,8 +171,63 @@ const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+
+  const startCamera = useCallback(async () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+    }
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      setStream(newStream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = newStream;
+      }
+      setIsCameraReady(true);
+      setCameraError(null);
+    } catch (err) {
+      console.error("Camera access denied:", err);
+      setCameraError("Camera access is required. Please enable it in your browser settings, or upload a photo from your gallery.");
+      setIsCameraReady(false);
+    }
+  }, [stream]);
+
+  useEffect(() => {
+    if (!imageFile && !result) {
+      startCamera();
+    }
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [imageFile, result, startCamera]);
+
+  const handleCapture = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (context) {
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
+          setImageFile(file);
+          setImagePreview(URL.createObjectURL(file));
+        }
+      }, 'image/jpeg', 0.9);
+    }
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -188,6 +241,12 @@ const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({
     }
   };
 
+  const handleRetake = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setNotes('');
+  };
+  
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (imageFile && pet) {
@@ -210,52 +269,68 @@ const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
-      <header className="p-4 flex items-center border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-        <button onClick={() => navigate(-1)} className="mr-4 text-gray-600 hover:text-gray-900"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
-        <h1 className="text-xl font-bold">AI Health Check</h1>
+    <div className="min-h-screen bg-black flex flex-col font-sans text-white">
+      <header className="p-4 flex items-center bg-black/50 backdrop-blur-sm sticky top-0 z-20">
+        <button onClick={() => imagePreview ? handleRetake() : navigate(-1)} className="mr-4 text-white hover:text-gray-300">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+        </button>
+        <h1 className="text-xl font-bold">AI Health Scan for {pet?.name}</h1>
       </header>
-
+      
       {!pet ? (
          <div className="flex-grow flex flex-col items-center justify-center p-4 text-center">
              <div className="text-4xl mb-4">🐾</div>
-             <h2 className="text-xl font-bold text-gray-800">No Pet Selected</h2>
-             <p className="text-gray-600 mt-2">Please add or select a pet from your profile to perform a health check.</p>
+             <h2 className="text-xl font-bold">No Pet Selected</h2>
+             <p className="text-gray-400 mt-2">Please add or select a pet from your profile to perform a health check.</p>
              <button onClick={() => navigate('/profile')} className="mt-4 bg-teal-500 text-white font-bold py-2 px-4 rounded-lg">Go to Profile</button>
          </div>
-      ) : (
-        <main className="flex-grow p-4 md:p-6">
-          <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-xl shadow-sm max-w-lg mx-auto">
-            <div className="text-center">
-                <h2 className="text-2xl font-bold text-gray-800">Wellness Scan for {pet.name}</h2>
-                <p className="text-gray-600 mt-1">Upload a clear, well-lit photo of your pet for analysis.</p>
+      ) : !imagePreview ? (
+        // --- CAMERA VIEW ---
+        <main className="flex-grow flex flex-col relative">
+          {cameraError ? (
+            <div className="flex-grow flex flex-col items-center justify-center p-8 text-center">
+              <p className="mb-4">{cameraError}</p>
+              <button onClick={() => fileInputRef.current?.click()} className="bg-teal-500 font-bold py-2 px-4 rounded-lg">Upload from Gallery</button>
             </div>
-            
-            <div className="flex flex-col items-center">
-              <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageChange} className="hidden" id="pet-photo-upload" />
-              <label htmlFor="pet-photo-upload" className="w-full h-48 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-gray-500 hover:border-teal-500 hover:text-teal-600 cursor-pointer bg-gray-50 transition-colors">
-                {imagePreview ? (
-                  <img src={imagePreview} alt="Pet preview" className="w-full h-full object-contain rounded-lg p-1" />
-                ) : (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                    <span>Click to upload a photo</span>
-                    <span className="text-xs mt-1">(e.g., side view, face, or specific area of concern)</span>
-                  </>
-                )}
-              </label>
-            </div>
-            
-            <div>
-              <label htmlFor="notes" className="font-semibold text-gray-700">Additional Notes (Optional)</label>
-              <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="e.g., My dog has been scratching his left ear a lot." className="w-full mt-2 p-2 border rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"></textarea>
-            </div>
-            
-            {error && <p className="text-red-600 bg-red-50 p-3 rounded-md text-center text-sm font-semibold">{error}</p>}
-            
-            <button type="submit" disabled={!imageFile || isChecking} className="w-full bg-teal-500 text-white font-bold py-3 rounded-lg disabled:opacity-50 transition-colors hover:bg-teal-600">
-              {isChecking ? 'Analyzing...' : 'Start Analysis'}
+          ) : (
+             <div className="flex-grow relative bg-gray-900 flex items-center justify-center overflow-hidden">
+                <video ref={videoRef} autoPlay playsInline muted className="h-full w-auto object-cover"></video>
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-[80%] aspect-square border-2 border-white/50 rounded-3xl animate-pulse"></div>
+                </div>
+                <canvas ref={canvasRef} className="hidden"></canvas>
+             </div>
+          )}
+          <div className="w-full p-4 bg-black/50 backdrop-blur-sm flex justify-around items-center z-10">
+            <button onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center text-xs space-y-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <span>Gallery</span>
             </button>
+            <button onClick={handleCapture} disabled={!isCameraReady} className="w-20 h-20 bg-white rounded-full border-4 border-black/50 ring-4 ring-white/30 disabled:bg-gray-400 disabled:ring-0"></button>
+            <button className="flex flex-col items-center text-xs space-y-1 opacity-50 cursor-not-allowed">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              <span>Flash</span>
+            </button>
+          </div>
+          <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageChange} className="hidden" />
+        </main>
+      ) : (
+        // --- PREVIEW & ANALYSIS VIEW ---
+        <main className="flex-grow flex flex-col">
+          <form onSubmit={handleSubmit} className="flex-grow flex flex-col">
+            <div className="flex-grow relative bg-black flex items-center justify-center">
+              <img src={imagePreview} alt="Pet preview" className="max-w-full max-h-full object-contain" />
+            </div>
+            <div className="p-4 bg-gray-900 space-y-4">
+              <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Add notes (e.g., scratching ear a lot)..." className="w-full p-2 border border-gray-700 rounded-md bg-gray-800 text-white focus:ring-2 focus:ring-teal-500 transition"></textarea>
+              {error && <p className="text-red-400 bg-red-900/50 p-3 rounded-md text-center text-sm font-semibold">{error}</p>}
+              <div className="flex gap-4">
+                 <button type="button" onClick={handleRetake} className="w-full bg-gray-700 font-bold py-3 rounded-lg hover:bg-gray-600 transition-colors">Retake</button>
+                 <button type="submit" disabled={!imageFile || isChecking} className="w-full bg-teal-500 font-bold py-3 rounded-lg disabled:opacity-50 hover:bg-teal-600 transition-colors">
+                   {isChecking ? 'Analyzing...' : 'Analyze Photo'}
+                 </button>
+              </div>
+            </div>
           </form>
         </main>
       )}

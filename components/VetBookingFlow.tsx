@@ -98,7 +98,8 @@ const VetProfileScreen = ({ vet, onBookNow }: { vet: Vet, onBookNow: (vet: Vet) 
         <div className="bg-white p-4 rounded-xl shadow-sm"><div className="flex items-center gap-3 mb-3"><div className="bg-gray-100 text-gray-600 rounded-lg p-2">{icon}</div><h3 className="text-lg font-bold text-gray-800">{title}</h3></div>{children}</div>
     );
     
-    // FIX: Use Array.isArray for a robust type check on vet.photo_gallery, which might not be an array from the database.
+    // FIX: The 'vet.photo_gallery' property from the database might not be an array, leading to runtime errors.
+    // Using Array.isArray ensures we safely handle null or non-array values before accessing array properties.
     const galleryImages = (Array.isArray(vet.photo_gallery) && vet.photo_gallery.length > 0)
         ? vet.photo_gallery
         : [vet.photo_url || 'https://i.ibb.co/1M2g1CH/clinic-1.jpg'];

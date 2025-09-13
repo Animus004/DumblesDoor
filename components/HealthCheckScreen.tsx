@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Pet, HealthCheckResult, AIFeedback, HealthCategoryAnalysis, CareRecommendation, ActionItem, LocalService } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -173,42 +173,63 @@ const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({
   const [notes, setNotes] = useState('');
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  const startCamera = useCallback(async () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-    }
-    try {
-      const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      setStream(newStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = newStream;
-      }
-      setIsCameraReady(true);
-      setCameraError(null);
-    } catch (err) {
-      console.error("Camera access denied:", err);
-      setCameraError("Camera access is required. Please enable it in your browser settings, or upload a photo from your gallery.");
-      setIsCameraReady(false);
-    }
-  }, [stream]);
-
   useEffect(() => {
-    if (!imageFile && !result) {
-      startCamera();
+    // This effect manages the camera stream. It should only run when we
+    // intend to show the camera view (i.e., no image preview or result).
+    if (imageFile || result) {
+      // If we have an image or a result, the camera should be off.
+      // The cleanup function from the previous render will handle stopping the stream.
+      return;
     }
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+
+    let mediaStream: MediaStream | null = null;
+    let isMounted = true;
+
+    const initializeCamera = async () => {
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        
+        if (!isMounted) {
+          // The component unmounted while we were waiting for user permission.
+          newStream.getTracks().forEach(track => track.stop());
+          return;
+        }
+
+        mediaStream = newStream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+          videoRef.current.play(); // Explicitly play the video stream
+        }
+        setIsCameraReady(true);
+        setCameraError(null);
+      } catch (err) {
+        if (!isMounted) return; // Don't update state on an unmounted component
+        console.error("Camera access denied:", err);
+        setCameraError("Camera access is required. Please enable it in your browser settings, or upload a photo from your gallery.");
+        setIsCameraReady(false);
       }
     };
-  }, [imageFile, result, startCamera]);
+
+    initializeCamera();
+
+    // Cleanup function: this is called when dependencies change or the component unmounts.
+    return () => {
+      isMounted = false;
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+      // Also clear the srcObject to be safe
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    };
+  }, [imageFile, result]); // Dependencies: re-run effect when we switch to/from camera view.
 
   const handleCapture = () => {
     if (!videoRef.current || !canvasRef.current) return;

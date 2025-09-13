@@ -61,7 +61,7 @@ const VisualHealthReport: React.FC<{ pet: Pet; result: HealthCheckResult; previo
         const radius = 55, circumference = 2 * Math.PI * radius, offset = circumference - (score / 100) * circumference;
         const scoreColor = getStatusColor(score > 89 ? 'Excellent' : score > 69 ? 'Good' : 'Concern').main;
         return (
-             <div className="relative w-48 h-48">
+             <div className="relative w-48 h-48" role="img" aria-label={`Overall health score: ${score} out of 100`}>
                 <svg className="w-full h-full" viewBox="0 0 120 120">
                     <circle className="health-score-gauge-bg" strokeWidth="10" cx="60" cy="60" r={radius} />
                     <circle className="health-score-gauge-progress" strokeWidth="10" cx="60" cy="60" r={radius} style={{ strokeDasharray: circumference, '--circumference': circumference, '--progress-offset': offset, stroke: scoreColor } as React.CSSProperties} />
@@ -118,7 +118,7 @@ const VisualHealthReport: React.FC<{ pet: Pet; result: HealthCheckResult; previo
         <div className="bg-gray-50 min-h-full flex flex-col font-sans" style={{animation: 'fade-in 0.5s ease-out'}}>
              {showCelebration && <Confetti />}
             <header className="p-4 flex items-center border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-                <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
+                <button onClick={onBack} className="mr-4 text-gray-600 hover:text-gray-900" aria-label="Start a new scan"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
                 <h1 className="text-xl font-bold">Wellness Story</h1>
             </header>
             <main className="flex-grow p-4 space-y-4 overflow-y-auto pb-24">
@@ -155,7 +155,7 @@ const VisualHealthReport: React.FC<{ pet: Pet; result: HealthCheckResult; previo
                 <button onClick={onBack} className="w-full bg-gray-200 text-gray-800 font-bold py-3 rounded-xl">New Scan</button>
                 <button onClick={handleShare} className="w-full bg-teal-500 text-white font-bold py-3 rounded-xl">Share Report</button>
             </footer>
-            {showShareToast && <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-full text-sm font-semibold toast-enter-exit">Report link copied to clipboard!</div>}
+            {showShareToast && <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-full text-sm font-semibold toast-enter-exit" role="status" aria-live="polite">Report link copied to clipboard!</div>}
         </div>
     );
 };
@@ -281,8 +281,8 @@ const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({
 
   if (isChecking) {
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center text-center p-8">
-            <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-teal-500"></div>
+        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center text-center p-8" role="status" aria-live="polite">
+            <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-teal-500" aria-hidden="true"></div>
             <h2 className="mt-6 text-xl font-bold text-gray-800">Analyzing {pet?.name}'s photo...</h2>
             <p className="text-gray-600 mt-2 max-w-sm">This may take a moment. Our AI is checking for key health indicators like coat condition, eye clarity, and body posture.</p>
         </div>
@@ -292,7 +292,7 @@ const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({
   return (
     <div className="min-h-screen bg-black flex flex-col font-sans text-white">
       <header className="p-4 flex items-center bg-black/50 backdrop-blur-sm sticky top-0 z-20">
-        <button onClick={() => imagePreview ? handleRetake() : navigate(-1)} className="mr-4 text-white hover:text-gray-300">
+        <button onClick={() => imagePreview ? handleRetake() : navigate(-1)} className="mr-4 text-white hover:text-gray-300" aria-label={imagePreview ? 'Retake photo or go back' : 'Go back to previous screen'}>
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
         </button>
         <h1 className="text-xl font-bold">AI Health Scan for {pet?.name}</h1>
@@ -315,7 +315,7 @@ const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({
             </div>
           ) : (
              <div className="flex-grow relative bg-gray-900 flex items-center justify-center overflow-hidden">
-                <video ref={videoRef} autoPlay playsInline muted className="h-full w-auto object-cover"></video>
+                <video ref={videoRef} autoPlay playsInline muted className="h-full w-auto object-cover" aria-label="Live camera feed for taking a photo of your pet"></video>
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="w-[80%] aspect-square border-2 border-white/50 rounded-3xl animate-pulse"></div>
                 </div>
@@ -323,17 +323,17 @@ const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({
              </div>
           )}
           <div className="w-full p-4 bg-black/50 backdrop-blur-sm flex justify-around items-center z-10">
-            <button onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center text-xs space-y-1">
+            <button onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center text-xs space-y-1" aria-label="Upload a photo from your gallery">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               <span>Gallery</span>
             </button>
-            <button onClick={handleCapture} disabled={!isCameraReady} className="w-20 h-20 bg-white rounded-full border-4 border-black/50 ring-4 ring-white/30 disabled:bg-gray-400 disabled:ring-0"></button>
-            <button className="flex flex-col items-center text-xs space-y-1 opacity-50 cursor-not-allowed">
+            <button onClick={handleCapture} disabled={!isCameraReady} className="w-20 h-20 bg-white rounded-full border-4 border-black/50 ring-4 ring-white/30 disabled:bg-gray-400 disabled:ring-0" aria-label="Capture photo from camera"></button>
+            <button className="flex flex-col items-center text-xs space-y-1 opacity-50 cursor-not-allowed" aria-disabled="true">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
               <span>Flash</span>
             </button>
           </div>
-          <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageChange} className="hidden" />
+          <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageChange} className="hidden" aria-hidden="true" />
         </main>
       ) : (
         // --- PREVIEW & ANALYSIS VIEW ---
@@ -343,11 +343,11 @@ const HealthCheckScreen: React.FC<HealthCheckScreenProps> = ({
               <img src={imagePreview} alt="Pet preview" className="max-w-full max-h-full object-contain" />
             </div>
             <div className="p-4 bg-gray-900 space-y-4">
-              <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Add notes (e.g., scratching ear a lot)..." className="w-full p-2 border border-gray-700 rounded-md bg-gray-800 text-white focus:ring-2 focus:ring-teal-500 transition"></textarea>
-              {error && <p className="text-red-400 bg-red-900/50 p-3 rounded-md text-center text-sm font-semibold">{error}</p>}
+              <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Add notes (e.g., scratching ear a lot)..." className="w-full p-2 border border-gray-700 rounded-md bg-gray-800 text-white focus:ring-2 focus:ring-teal-500 transition" aria-label="Add notes about your pet's condition"></textarea>
+              {error && <p className="text-red-400 bg-red-900/50 p-3 rounded-md text-center text-sm font-semibold" role="alert">{error}</p>}
               <div className="flex gap-4">
                  <button type="button" onClick={handleRetake} className="w-full bg-gray-700 font-bold py-3 rounded-lg hover:bg-gray-600 transition-colors">Retake</button>
-                 <button type="submit" disabled={!imageFile || isChecking} className="w-full bg-teal-500 font-bold py-3 rounded-lg disabled:opacity-50 hover:bg-teal-600 transition-colors">
+                 <button type="submit" disabled={!imageFile || isChecking} className="w-full bg-teal-500 font-bold py-3 rounded-lg disabled:opacity-50 hover:bg-teal-600 transition-colors" aria-label={isChecking ? 'Analysis is in progress' : 'Analyze photo for health check'}>
                    {isChecking ? 'Analyzing...' : 'Analyze Photo'}
                  </button>
               </div>

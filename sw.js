@@ -1,96 +1,86 @@
-const CACHE_NAME = 'dumbles-door-v1';
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/manifest.json'
-  // The main JS/CSS are loaded from esm.sh via importmap,
-  // which the service worker will cache dynamically on first fetch.
+// A more robust service worker recommended for PWAs.
+
+const CACHE_NAME = 'dumbles-door-v2'; // Increment version to clear old cache
+const OFFLINE_URL = 'offline.html';
+const APP_SHELL_URLS = [
+    '/',
+    '/index.html',
+    '/manifest.json',
+    OFFLINE_URL
 ];
 
-// Install a service worker
+// 1. Installation: Pre-cache the app shell.
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
+        console.log('[Service Worker] Pre-caching app shell');
+        // Add offline.html to the cache
+        const offlineRequest = new Request(OFFLINE_URL, { cache: 'reload' });
+        return cache.add(offlineRequest).then(() => {
+          return cache.addAll(APP_SHELL_URLS);
+        });
       })
   );
 });
 
-// Cache and return requests
-self.addEventListener('fetch', event => {
-  const requestUrl = new URL(event.request.url);
-
-  // For API calls (Supabase), use a network-first strategy.
-  if (requestUrl.hostname.includes('supabase.co') || requestUrl.hostname.includes('supabase.in')) {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          // If the request is successful, clone it and cache it.
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              cache.put(event.request, responseToCache);
-            });
-          return response;
+// 2. Activation: Clean up old caches.
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('[Service Worker] Deleting old cache:', cacheName);
+            return caches.delete(cacheName);
+          }
         })
+      );
+    })
+  );
+  self.clients.claim();
+});
+
+// 3. Fetch: Implement caching strategies.
+self.addEventListener('fetch', event => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // Strategy 1: Network-first for API calls (Supabase).
+  if (url.hostname.includes('supabase.co') || url.hostname.includes('supabase.in')) {
+    event.respondWith(
+      fetch(request)
+        .catch(() => caches.match(request)) // Fallback to cache if network fails
+    );
+    return;
+  }
+
+  // Strategy 2: Network-first, falling back to offline page for navigations.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
         .catch(() => {
-          // If the network fails, try to serve from the cache.
-          return caches.match(event.request);
+          return caches.open(CACHE_NAME)
+            .then(cache => cache.match(OFFLINE_URL));
         })
     );
     return;
   }
 
-  // For all other requests (app shell, fonts, dynamic imports from esm.sh), use a cache-first strategy.
+  // Strategy 3: Stale-while-revalidate for other assets (CSS, JS, images).
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.match(request).then(cachedResponse => {
+        const fetchPromise = fetch(request).then(networkResponse => {
+          // If the fetch is successful, update the cache.
+          cache.put(request, networkResponse.clone());
+          return networkResponse;
+        });
 
-        // Not in cache - fetch it, and cache it for next time.
-        return fetch(event.request).then(
-          response => {
-            // Check if we received a valid response
-            if (!response || response.status !== 200) {
-              return response;
-            }
-
-            // We don't cache opaque responses (from no-cors requests to third-party CDNs)
-            // as we can't validate them, but we still serve them.
-            if(response.type === 'opaque') {
-                return response;
-            }
-
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME)
-              .then(cache => {
-                cache.put(event.request, responseToCache);
-              });
-
-            return response;
-          }
-        );
-      })
-  );
-});
-
-// Update a service worker
-self.addEventListener('activate', event => {
-  const cacheWhitelist = [CACHE_NAME];
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
+        // Return the cached response immediately if available,
+        // otherwise wait for the network response.
+        return cachedResponse || fetchPromise;
+      });
     })
   );
 });

@@ -15,6 +15,12 @@ import WelcomeScreen from './components/WelcomeScreen';
 import OnboardingCompletionScreen from './components/OnboardingCompletionScreen';
 import AppRouter from './src/Router';
 
+declare global {
+  interface Window {
+    google: any;
+  }
+}
+
 const getFriendlyAuthErrorMessage = (message: string): string => {
     if (!message) return 'An unexpected error occurred. Please try again.';
     const lowerCaseMessage = message.toLowerCase();

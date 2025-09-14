@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../services/supabaseClient'; // Although not used for mock, good to have for future.
+import { supabase } from '../../services/supabaseClient'; // Although not used for mock, good to have for future.
 import type { User } from '@supabase/supabase-js';
 
 // Mock message type

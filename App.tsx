@@ -90,7 +90,7 @@ const EmailVerificationScreen: React.FC<{ email: string }> = ({ email }) => {
 };
 
 const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage }) => {
-    const [isLoginView, setIsLoginView] = useState(true);
+    const [isLoginView, setIsLoginView] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -114,7 +114,12 @@ const AuthScreen: React.FC<{ postLogoutMessage: string }> = ({ postLogoutMessage
                 if (!data.session) alert('Check your email for the confirmation link!');
             }
         } catch (error: any) {
-            setError(getFriendlyAuthErrorMessage(error.message));
+            if (error.message && error.message.toLowerCase().includes('user already registered')) {
+                setIsLoginView(true);
+                setError('An account with this email already exists. Please log in.');
+            } else {
+                setError(getFriendlyAuthErrorMessage(error.message));
+            }
         } finally {
             setLoading(false);
         }

@@ -1,6 +1,7 @@
 {
   "short_name": "Dumble's Door",
   "name": "Dumble's Door - Indian Pet Care",
+  "id": "/",
   "description": "An all-in-one Indian pet care app providing AI-powered health checks, vet booking, product recommendations, and a complete digital log for your pet's journey.",
   "icons": [
     {
@@ -28,11 +29,28 @@
       "purpose": "any maskable"
     }
   ],
+  "screenshots": [
+    {
+      "src": "https://placehold.co/540x720/4FD1C5/ffffff?text=App+Home+Screen",
+      "type": "image/png",
+      "sizes": "540x720",
+      "form_factor": "narrow",
+      "label": "App Home Screen for Mobile"
+    },
+    {
+      "src": "https://placehold.co/1280x800/FF8A65/ffffff?text=Health+Check+Feature",
+      "type": "image/png",
+      "sizes": "1280x800",
+      "form_factor": "wide",
+      "label": "AI-Powered Health Check Feature"
+    }
+  ],
   "start_url": ".",
   "display": "standalone",
   "orientation": "portrait-primary",
   "theme_color": "#28CBC9",
   "background_color": "#ffffff",
+  "categories": ["pets", "lifestyle", "health", "medical"],
   "shortcuts": [
     {
       "name": "Sign Out",

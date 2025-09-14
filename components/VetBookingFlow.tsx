@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
@@ -74,7 +75,7 @@ const VetSearchScreen = ({ onSelectVet, emergencyMode, onExitEmergencyMode }: { 
     }, []);
 
     useEffect(() => {
-        // Fix: Ensure `v.services` is an array before using array methods. Supabase can return a single object for one-to-many relations with one result.
+        // FIX: Ensure `v.services` is an array before using array methods. Supabase can return a single object for one-to-many relations with one result.
         if (!loading) setFilteredVets(allVets.filter(v => emergencyMode ? v.is_24_7 : !quickFilter || (Array.isArray(v.services) && v.services.some(s => s.name.toLowerCase().includes(quickFilter.toLowerCase())))));
     }, [allVets, loading, quickFilter, emergencyMode]);
     

@@ -2,10 +2,6 @@ const CACHE_NAME = 'dumbles-door-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/icon-72.png',
-  '/icon-144.png',
-  '/icon-192.png',
-  '/icon-512.png',
   '/manifest.json'
   // The main JS/CSS are loaded from esm.sh via importmap,
   // which the service worker will cache dynamically on first fetch.

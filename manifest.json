@@ -4,25 +4,25 @@
   "description": "An all-in-one Indian pet care app providing AI-powered health checks, vet booking, product recommendations, and a complete digital log for your pet's journey.",
   "icons": [
     {
-      "src": "/icon-72.png",
+      "src": "https://placehold.co/72x72/4FD1C5/ffffff?text=🐾",
       "type": "image/png",
       "sizes": "72x72",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-144.png",
+      "src": "https://placehold.co/144x144/4FD1C5/ffffff?text=🐾",
       "type": "image/png",
       "sizes": "144x144",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-192.png",
+      "src": "https://placehold.co/192x192/4FD1C5/ffffff?text=🐾",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-512.png",
+      "src": "https://placehold.co/512x512/4FD1C5/ffffff?text=🐾",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any maskable"
@@ -39,7 +39,7 @@
       "short_name": "Sign Out",
       "description": "Sign out of your account",
       "url": "/?action=logout",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "https://placehold.co/192x192/4FD1C5/ffffff?text=🐾", "sizes": "192x192" }]
     }
   ]
 }

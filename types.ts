@@ -1,4 +1,3 @@
-
 import { Database, Json } from './database.types';
 
 // FIX: Export the 'Json' type to make it available to other modules.
@@ -45,7 +44,7 @@ export interface Pet {
 
 export interface Vet extends ProfessionalProfile {
   distance_km?: number; // Make distance optional as it's not in the main table
-  services?: DbVetService[];
+  services?: DbVetService[] | DbVetService | null;
   reviews?: VetReview[];
 }
 

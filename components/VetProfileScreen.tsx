@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { Vet, VetReview, VetService } from '../types';
 
@@ -46,9 +45,9 @@ const VetProfileScreen: React.FC<VetProfileScreenProps> = ({ vet, onBookNow }) =
             return [];
         }
         if (Array.isArray(vet.services)) {
-            return vet.services as VetService[];
+            return vet.services;
         }
-        return [vet.services as VetService];
+        return [vet.services];
     }, [vet.services]);
 
     return (

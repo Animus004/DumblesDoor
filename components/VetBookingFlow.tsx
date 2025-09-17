@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
@@ -77,11 +75,12 @@ const VetSearchScreen = ({ onSelectVet, emergencyMode, onExitEmergencyMode }: { 
 
     useEffect(() => {
         if (!loading) {
-            const vets = allVets.filter(v => 
-                emergencyMode 
-                ? v.is_24_7 
-                : !quickFilter || (Array.isArray(v.services) && v.services.some(s => s.name.toLowerCase().includes(quickFilter.toLowerCase())))
-            );
+            const vets = allVets.filter(v => {
+                const services = Array.isArray(v.services) ? v.services : (v.services ? [v.services] : []);
+                return emergencyMode 
+                    ? v.is_24_7 
+                    : !quickFilter || services.some(s => s.name.toLowerCase().includes(quickFilter.toLowerCase()));
+            });
             setFilteredVets(vets);
         }
     }, [allVets, loading, quickFilter, emergencyMode]);
@@ -126,16 +125,16 @@ const BookingScreen: React.FC<{ vet: Vet; pets: Pet[]; user: User; onBookingConf
     const [error, setError] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
 
-    // FIX: Safely handle the vet.services property, which could be undefined or not an array.
-    // This `useMemo` hook ensures `safeServices` is always an array, preventing runtime errors.
+    // FIX: Safely handle the 'services' property, which can be an array, a single object, or null.
+    // This normalizes it into an array to prevent runtime errors when using .length or .map.
     const safeServices: VetService[] = useMemo(() => {
         if (!vet.services) {
             return [];
         }
         if (Array.isArray(vet.services)) {
-            return vet.services as VetService[];
+            return vet.services;
         }
-        return [vet.services as VetService];
+        return [vet.services];
     }, [vet.services]);
 
     const timeSlots = useMemo(() => { if (!selectedService) return { morning: [], afternoon: [], evening: [] }; const slots = generateTimeSlots(selectedService.duration_minutes, MOCK_APPOINTMENTS); return slots.reduce((acc, time) => { const hour = parseInt(time.split(':')[0]); if (hour < 12) acc.morning.push(time); else if (hour < 16) acc.afternoon.push(time); else acc.evening.push(time); return acc; }, { morning: [] as string[], afternoon: [] as string[], evening: [] as string[] }); }, [selectedService, selectedDate]);

@@ -40,15 +40,8 @@ const VetProfileScreen: React.FC<VetProfileScreenProps> = ({ vet, onBookNow }) =
 
     const reviews = vet.reviews && vet.reviews.length > 0 ? vet.reviews : MOCK_REVIEWS;
 
-    const safeServices: VetService[] = React.useMemo(() => {
-        if (!vet.services) {
-            return [];
-        }
-        if (Array.isArray(vet.services)) {
-            return vet.services;
-        }
-        return [vet.services];
-    }, [vet.services]);
+    // Safely handle the 'services' property by normalizing it into an array.
+    const safeServices: VetService[] = vet.services ? (Array.isArray(vet.services) ? vet.services : [vet.services]) : [];
 
     return (
          <div className="bg-gray-50">

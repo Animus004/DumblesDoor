@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
@@ -125,6 +126,8 @@ const BookingScreen: React.FC<{ vet: Vet; pets: Pet[]; user: User; onBookingConf
     const [error, setError] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
 
+    // FIX: Safely handle the vet.services property, which could be undefined or not an array.
+    // This `useMemo` hook ensures `safeServices` is always an array, preventing runtime errors.
     const safeServices: VetService[] = useMemo(() => {
         if (!vet.services) {
             return [];

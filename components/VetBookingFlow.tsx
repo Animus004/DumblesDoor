@@ -108,11 +108,12 @@ const VetSearchScreen = ({ onSelectVet, emergencyMode, onExitEmergencyMode }: { 
     );
 };
 
-const MOCK_APPOINTMENTS = [{ time: '10:00', duration: 30 }, { time: '11:30', duration: 60 }, { time: '15:00', duration: 20 }];
+// NOTE: The vet's schedule is currently hardcoded. This should be fetched from the professional_profiles table
+// once working hours and break times are added to the professional portal.
 const VET_SCHEDULE = { start: '09:00', end: '17:00', lunchStart: '13:00', lunchEnd: '14:00' };
 const timeToMinutes = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 const minutesToTime = (m: number) => `${Math.floor(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}`;
-const generateTimeSlots = (duration: number, existing: typeof MOCK_APPOINTMENTS) => { const slots = []; const s = timeToMinutes(VET_SCHEDULE.start), e = timeToMinutes(VET_SCHEDULE.end), ls = timeToMinutes(VET_SCHEDULE.lunchStart), le = timeToMinutes(VET_SCHEDULE.lunchEnd); for (let i = s; i < e; i += 15) { const sS = i, sE = sS + duration; if (sE > e || (sS < le && sE > ls)) continue; if (!existing.some(a => { const aS = timeToMinutes(a.time), aE = aS + a.duration; return sS < aE && sE > aS; })) slots.push(minutesToTime(sS)); } return slots; };
+const generateTimeSlots = (duration: number, existing: { time: string; duration: number }[]) => { const slots = []; const s = timeToMinutes(VET_SCHEDULE.start), e = timeToMinutes(VET_SCHEDULE.end), ls = timeToMinutes(VET_SCHEDULE.lunchStart), le = timeToMinutes(VET_SCHEDULE.lunchEnd); for (let i = s; i < e; i += 15) { const sS = i, sE = sS + duration; if (sE > e || (sS < le && sE > ls)) continue; if (!existing.some(a => { const aS = timeToMinutes(a.time), aE = aS + a.duration; return sS < aE && sE > aS; })) slots.push(minutesToTime(sS)); } return slots; };
 const BookingProgress: React.FC<{ step: number }> = ({ step }) => (<div className="flex items-center justify-center gap-4 text-sm font-semibold"><span className={step >= 1 ? 'text-teal-600' : 'text-gray-400'}>Service</span><div className={`flex-shrink-0 h-1 w-8 rounded-full ${step >= 2 ? 'bg-teal-500' : 'bg-gray-300'}`}></div><span className={step >= 2 ? 'text-teal-600' : 'text-gray-400'}>Time</span><div className={`flex-shrink-0 h-1 w-8 rounded-full ${step >= 3 ? 'bg-teal-500' : 'bg-gray-300'}`}></div><span className={step >= 3 ? 'text-teal-600' : 'text-gray-400'}>Confirm</span></div>);
 const WeekCalendar: React.FC<{ selectedDate: Date; onDateSelect: (date: Date) => void; }> = ({ selectedDate, onDateSelect }) => { const [offset, setOffset] = useState(0); const startX = useRef(0); const getWeek = (o: number) => { const t = new Date(); t.setDate(t.getDate() + o * 7); const d = t.getDay(), s = new Date(t); s.setDate(t.getDate() - d); return Array.from({ length: 7 }, (_, i) => { const date = new Date(s); date.setDate(s.getDate() + i); return date; }); }; const week = useMemo(() => getWeek(offset), [offset]); const handleTouchStart = (e: React.TouchEvent) => { startX.current = e.touches[0].clientX; }; const handleTouchEnd = (e: React.TouchEvent) => { const endX = e.changedTouches[0].clientX; if (startX.current - endX > 50) setOffset(w => w + 1); else if (endX - startX.current > 50) setOffset(w => Math.max(0, w - 1)); }; return (<div className="bg-white p-3 rounded-xl shadow-sm" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}><div className="flex justify-between items-center mb-2 px-2"><button onClick={() => setOffset(w => Math.max(0, w - 1))} disabled={offset === 0} className="disabled:opacity-30">◀</button><p className="font-bold text-gray-700">{week[0].toLocaleString('en-IN', { month: 'long', year: 'numeric' })}</p><button onClick={() => setOffset(w => w + 1)}>▶</button></div><div className="flex justify-between">{week.map(day => { const isSelected = day.toDateString() === selectedDate.toDateString(), isPast = day < new Date(new Date().toDateString()); return (<button key={day.toISOString()} onClick={() => !isPast && onDateSelect(day)} disabled={isPast} className={`flex flex-col items-center p-2 rounded-lg w-12 h-16 justify-center transition-colors ${isSelected ? 'bg-teal-500 text-white' : 'hover:bg-gray-100'} ${isPast ? 'opacity-40' : ''}`}><span className="text-xs">{day.toLocaleString('en-IN', { weekday: 'short' })}</span><span className="font-bold text-lg">{day.getDate()}</span></button>)})}</div></div>); }
 
@@ -125,13 +126,61 @@ const BookingScreen: React.FC<{ vet: Vet; pets: Pet[]; user: User; onBookingConf
     const [notes, setNotes] = useState('');
     const [error, setError] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [dailyAppointments, setDailyAppointments] = useState<{ time: string; duration: number; }[]>([]);
+    const [isFetchingSlots, setIsFetchingSlots] = useState(false);
 
     const safeServices: VetService[] = useMemo(() => {
         if (!vet.services) return [];
         return Array.isArray(vet.services) ? vet.services : [vet.services];
     }, [vet.services]);
 
-    const timeSlots = useMemo(() => { if (!selectedService) return { morning: [], afternoon: [], evening: [] }; const slots = generateTimeSlots(selectedService.duration_minutes, MOCK_APPOINTMENTS); return slots.reduce((acc, time) => { const hour = parseInt(time.split(':')[0]); if (hour < 12) acc.morning.push(time); else if (hour < 16) acc.afternoon.push(time); else acc.evening.push(time); return acc; }, { morning: [] as string[], afternoon: [] as string[], evening: [] as string[] }); }, [selectedService, selectedDate]);
+    useEffect(() => {
+        const fetchAppointmentsForDay = async () => {
+            if (!vet || !selectedDate || !supabase) return;
+            setIsFetchingSlots(true);
+            
+            const startOfDay = new Date(selectedDate);
+            startOfDay.setHours(0, 0, 0, 0);
+
+            const endOfDay = new Date(selectedDate);
+            endOfDay.setHours(23, 59, 59, 999);
+
+            try {
+                const { data, error } = await supabase
+                    .from('appointments')
+                    .select('appointment_time, duration_minutes')
+                    .eq('vet_id', vet.id)
+                    .gte('appointment_time', startOfDay.toISOString())
+                    .lt('appointment_time', endOfDay.toISOString())
+                    .in('status', ['confirmed', 'completed']);
+
+                if (error) throw error;
+                
+                const formattedAppointments = data.map(app => {
+                    const time = new Date(app.appointment_time);
+                    return {
+                        time: `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}`,
+                        duration: app.duration_minutes,
+                    };
+                });
+                
+                setDailyAppointments(formattedAppointments);
+            } catch (err) {
+                console.error("Failed to fetch daily appointments:", err);
+                setError("Could not load available time slots. Please try another day.");
+            } finally {
+                setIsFetchingSlots(false);
+            }
+        };
+
+        fetchAppointmentsForDay();
+    }, [vet, selectedDate]);
+
+    const timeSlots = useMemo(() => { 
+        if (!selectedService) return { morning: [], afternoon: [], evening: [] }; 
+        const slots = generateTimeSlots(selectedService.duration_minutes, dailyAppointments); 
+        return slots.reduce((acc, time) => { const hour = parseInt(time.split(':')[0]); if (hour < 12) acc.morning.push(time); else if (hour < 16) acc.afternoon.push(time); else acc.evening.push(time); return acc; }, { morning: [] as string[], afternoon: [] as string[], evening: [] as string[] }); 
+    }, [selectedService, selectedDate, dailyAppointments]);
     
     const handleConfirm = async () => {
         if (!selectedPet || !selectedService || !selectedDate || !selectedTime || !supabase) { setError("Missing required information or database connection."); return; }
@@ -146,12 +195,20 @@ const BookingScreen: React.FC<{ vet: Vet; pets: Pet[]; user: User; onBookingConf
         <div className="p-4 space-y-4">
             <BookingProgress step={step} />
             {error && <p className="text-red-600 bg-red-50 p-3 rounded-md text-center text-sm">{error}</p>}
-            {step === 1 && (<><div className="mt-4"><h3 className="font-bold text-lg mb-2">1. Select your pet</h3><div className="flex gap-4 overflow-x-auto pb-2">{pets.map(pet => <button key={pet.id} onClick={() => setSelectedPet(pet)} className={`flex-shrink-0 text-center p-2 border-2 rounded-lg ${selectedPet?.id === pet.id ? 'border-teal-500 bg-teal-50' : 'border-transparent'}`}><img src={pet.photo_url} alt={pet.name} className="w-16 h-16 rounded-full object-cover"/><p className="text-sm font-semibold mt-1">{pet.name}</p></button>)}</div></div><div><h3 className="font-bold text-lg mb-2">2. Choose a service</h3><div className="space-y-2">
-{/* FIX: Use `safeServices` which is guaranteed to be an array, instead of `vet.services`. */}
-{safeServices.length > 0
-    ? safeServices.map(s => <button key={s.id} onClick={() => setSelectedService(s)} className={`w-full text-left p-3 rounded-lg border-2 ${selectedService?.id === s.id ? 'border-teal-500 bg-teal-50' : 'bg-white'}`}><div className="flex justify-between items-center"><div><p className="font-semibold">{s.name}</p><p className="text-sm text-gray-500">{s.duration_minutes} min</p></div><p className="font-bold text-teal-600">₹{s.price}</p></div></button>)
-    : <p className="text-sm text-gray-500 bg-gray-100 p-3 rounded-md">This veterinarian has not listed any specific services yet. You can book a 'General Consultation'.</p>}</div></div><button onClick={() => setStep(2)} disabled={!selectedPet || !selectedService} className="w-full bg-teal-500 text-white font-bold py-3 rounded-lg disabled:opacity-50 mt-4">Next: Choose Date & Time</button></>)}
-            {step === 2 && (<><WeekCalendar selectedDate={selectedDate} onDateSelect={setSelectedDate} /> {Object.entries(timeSlots).map(([period, slots]) => slots.length > 0 && <div key={period}><h4 className="font-bold capitalize mt-4 mb-2">{period}</h4><div className="grid grid-cols-3 gap-2">{slots.map(time => <button key={time} onClick={() => { setSelectedTime(time); setStep(3);}} className="p-3 bg-teal-100 text-teal-700 font-semibold rounded-lg text-center hover:bg-teal-200">{time}</button>)}</div></div>)}{(timeSlots.morning.length + timeSlots.afternoon.length + timeSlots.evening.length) === 0 && <p className="text-center text-gray-500 mt-4">No available slots. Try another day.</p>}<button onClick={() => setStep(1)} className="w-full bg-gray-200 font-bold py-3 rounded-lg mt-4">Back</button></>)}
+            {step === 1 && (<><div className="mt-4"><h3 className="font-bold text-lg mb-2">1. Select your pet</h3><div className="flex gap-4 overflow-x-auto pb-2">{pets.map(pet => <button key={pet.id} onClick={() => setSelectedPet(pet)} className={`flex-shrink-0 text-center p-2 border-2 rounded-lg ${selectedPet?.id === pet.id ? 'border-teal-500 bg-teal-50' : 'border-transparent'}`}><img src={pet.photo_url} alt={pet.name} className="w-16 h-16 rounded-full object-cover"/><p className="text-sm font-semibold mt-1">{pet.name}</p></button>)}</div></div><div><h3 className="font-bold text-lg mb-2">2. Choose a service</h3><div className="space-y-2">{safeServices.length > 0 ? safeServices.map(s => <button key={s.id} onClick={() => setSelectedService(s)} className={`w-full text-left p-3 rounded-lg border-2 ${selectedService?.id === s.id ? 'border-teal-500 bg-teal-50' : 'bg-white'}`}><div className="flex justify-between items-center"><div><p className="font-semibold">{s.name}</p><p className="text-sm text-gray-500">{s.duration_minutes} min</p></div><p className="font-bold text-teal-600">₹{s.price}</p></div></button>) : <p className="text-sm text-gray-500 bg-gray-100 p-3 rounded-md">This veterinarian has not listed any specific services yet. You can book a 'General Consultation'.</p>}</div></div><button onClick={() => setStep(2)} disabled={!selectedPet || !selectedService} className="w-full bg-teal-500 text-white font-bold py-3 rounded-lg disabled:opacity-50 mt-4">Next: Choose Date & Time</button></>)}
+            {step === 2 && (<>
+                <WeekCalendar selectedDate={selectedDate} onDateSelect={(date) => { setSelectedDate(date); setSelectedTime(null); }} />
+                {isFetchingSlots ? (
+                    <div className="text-center p-8"><div className="w-8 h-8 border-2 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div><p className="mt-2 text-gray-600 text-sm">Fetching available slots...</p></div>
+                ) : (
+                    <>
+                        {/* FIX: Add a type guard to ensure `slots` is an array before accessing array properties. */}
+                        {Object.entries(timeSlots).map(([period, slots]) => (Array.isArray(slots) && slots.length > 0) && <div key={period}><h4 className="font-bold capitalize mt-4 mb-2">{period}</h4><div className="grid grid-cols-3 gap-2">{slots.map(time => <button key={time} onClick={() => { setSelectedTime(time); setStep(3);}} className="p-3 bg-teal-100 text-teal-700 font-semibold rounded-lg text-center hover:bg-teal-200">{time}</button>)}</div></div>)}
+                        {(timeSlots.morning.length + timeSlots.afternoon.length + timeSlots.evening.length) === 0 && <p className="text-center text-gray-500 mt-4">No available slots. Try another day.</p>}
+                    </>
+                )}
+                <button onClick={() => setStep(1)} className="w-full bg-gray-200 font-bold py-3 rounded-lg mt-4">Back</button>
+            </>)}
             {step === 3 && (<div className="space-y-4"><div className="bg-white p-4 rounded-lg shadow-sm space-y-3"><p><strong>Pet:</strong> {selectedPet?.name}</p><p><strong>Vet:</strong> {vet.name}</p><p><strong>Service:</strong> {selectedService?.name}</p><p><strong>When:</strong> {selectedDate?.toLocaleDateString('en-IN', { dateStyle: 'full' })} at {selectedTime}</p><p><strong>Total:</strong> <span className="font-bold">₹{selectedService?.price}</span></p></div><button onClick={handleConfirm} className="w-full bg-teal-500 text-white font-bold py-3 rounded-lg">Confirm & Pay</button><button onClick={() => setStep(2)} className="w-full bg-gray-200 font-bold py-3 rounded-lg">Change Time</button></div>)}
         </div>
     );

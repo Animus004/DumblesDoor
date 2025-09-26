@@ -205,6 +205,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ pet, profile, isLoading, showCe
 
   const services = [
     { title: "AI Health Check", subtitle: "Quick health analysis", icon: ICONS.HEALTH_CHECK, onClick: () => navigate('/health'), disabled: isPetFeatureDisabled },
+    { title: "AI Assistant", subtitle: "Chat with Dumble", icon: ICONS.AI_ASSISTANT, onClick: () => navigate('/chat/ai'), disabled: false },
     { title: "Book a Vet", subtitle: "Find trusted vets", icon: ICONS.VET_BOOKING, onClick: () => navigate('/vet'), disabled: isPetFeatureDisabled },
     { title: "Marketplace", subtitle: "Pet essentials store", icon: ICONS.PET_ESSENTIALS, onClick: () => navigate('/essentials'), disabled: false },
     { title: "PetBook", subtitle: "Community feed", icon: ICONS.PET_BOOK, onClick: () => navigate('/book'), disabled: isPetFeatureDisabled }

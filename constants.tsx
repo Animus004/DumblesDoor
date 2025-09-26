@@ -76,11 +76,30 @@ const PET_BOOK_3D = (
   </svg>
 );
 
+const AI_ASSISTANT_3D = (
+    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <linearGradient id="ai-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#A78BFA" />
+                <stop offset="100%" stopColor="#F687B3" />
+            </linearGradient>
+        </defs>
+        <g transform="translate(2, 4)">
+            <path d="M50 8 H14 C10.7 8 8 10.7 8 14 V36 C8 39.3 10.7 42 14 42 H22 V50 L32 42 H50 C53.3 42 56 39.3 56 36 V14 C56 10.7 53.3 8 50 8 Z" fill="#DDD6FE" />
+            <path d="M50 10 H14 C11.8 10 10 11.8 10 14 V36 C10 38.2 11.8 40 14 40 H23 V46 L30 40 H50 C52.2 40 54 38.2 54 36 V14 C54 11.8 52.2 10 50 10 Z" fill="url(#ai-grad)" />
+            <path d="M26 22 L23 25 L26 28 M38 22 L41 25 L38 28" stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.9" />
+            <circle cx="32" cy="25" r="1.5" fill="white" opacity="0.9" />
+        </g>
+    </svg>
+);
+
+
 export const ICONS = {
   HEALTH_CHECK: HEALTH_CHECK_3D,
   VET_BOOKING: VET_BOOKING_3D,
   PET_ESSENTIALS: PET_ESSENTIALS_3D,
   PET_BOOK: PET_BOOK_3D,
+  AI_ASSISTANT: AI_ASSISTANT_3D,
   CHAT: (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
       <path fillRule="evenodd" d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2zM7 8H5v2h2V8zm2 0h2v2H9V8zm6 0h-2v2h2V8z" clipRule="evenodd" />

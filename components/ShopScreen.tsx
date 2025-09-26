@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Product } from '../types';
@@ -9,6 +10,9 @@ type Category = 'All' | 'Food' | 'Toys' | 'Grooming' | 'Accessories' | 'Medicine
 const categories: Category[] = ['All', 'Food', 'Toys', 'Grooming', 'Accessories', 'Medicine'];
 
 // --- Sub-components ---
+
+// FIX: Define a type for cart items for better type safety and to resolve inference issues.
+type CartItem = { product: Product; quantity: number };
 
 const ProductCard: React.FC<{ product: Product; onAddToCart: () => void; }> = ({ product, onAddToCart }) => {
     const isOutOfStock = product.stock === 0;
@@ -119,7 +123,8 @@ const ShopScreen: React.FC<ShopScreenProps> = () => {
     const [activeCategory, setActiveCategory] = useState<Category>('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [maxPrice, setMaxPrice] = useState(10000);
-    const [cart, setCart] = useState<Map<string, { product: Product; quantity: number }>>(new Map());
+    // FIX: Use the CartItem type alias for the state to ensure type safety.
+    const [cart, setCart] = useState<Map<string, CartItem>>(new Map());
     const [showCart, setShowCart] = useState(false);
 
     useEffect(() => {
@@ -168,7 +173,8 @@ const ShopScreen: React.FC<ShopScreenProps> = () => {
     const addToCart = (productToAdd: Product) => {
         setCart(prevCart => {
             const newCart = new Map(prevCart);
-            const existingItem = newCart.get(productToAdd.id);
+            // FIX: Explicitly type the retrieved item to avoid it being inferred as 'unknown'.
+            const existingItem: CartItem | undefined = newCart.get(productToAdd.id);
             if (existingItem) {
                 if (existingItem.quantity < productToAdd.stock) {
                     newCart.set(productToAdd.id, { ...existingItem, quantity: existingItem.quantity + 1 });
@@ -185,7 +191,8 @@ const ShopScreen: React.FC<ShopScreenProps> = () => {
     const updateCartQuantity = (productId: string, newQuantity: number) => {
         setCart(prevCart => {
             const newCart = new Map(prevCart);
-            const item = newCart.get(productId);
+            // FIX: Explicitly type the retrieved item to avoid it being inferred as 'unknown'.
+            const item: CartItem | undefined = newCart.get(productId);
             if (!item) return newCart;
 
             if (newQuantity <= 0) {
@@ -208,7 +215,8 @@ const ShopScreen: React.FC<ShopScreenProps> = () => {
     }, [products, activeCategory, searchQuery, maxPrice]);
 
     const cartItemCount = useMemo(() => {
-        return Array.from(cart.values()).reduce((sum, item) => sum + item.quantity, 0);
+        // FIX: Explicitly type the item in the reduce function to ensure access to its properties.
+        return Array.from(cart.values()).reduce((sum, item: CartItem) => sum + item.quantity, 0);
     }, [cart]);
 
     return (

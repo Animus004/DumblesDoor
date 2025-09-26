@@ -10,7 +10,7 @@ interface MyAppointmentsScreenProps {}
 const generateIcsLink = (appointment: Appointment): string => {
     const startTime = new Date(appointment.appointment_time).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
     const endTime = new Date(new Date(appointment.appointment_time).getTime() + appointment.duration_minutes * 60000).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-    const icsContent = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VEVENT', `UID:${appointment.id}@dumblesdoor.app`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'}`, `DTSTART:${startTime}`, `DTEND:${endTime}`, `SUMMARY:Vet Appointment for ${appointment.pet?.name}`, `DESCRIPTION:Appointment with ${appointment.vet?.name} for ${appointment.service?.name}. Notes: ${appointment.notes || 'N/A'}`, `LOCATION:${appointment.vet?.address}`, 'END:VEVENT', 'END:VCALENDAR'].join('\n');
+    const icsContent = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VEVENT', `UID:${appointment.id}@dumblesdoor.app`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'}`, `DTSTART:${startTime}`, `DTEND:${endTime}`, `SUMMARY:Vet Appointment for ${appointment.pet?.name}`, `DESCRIPTION:Appointment with ${appointment.vet?.name} for ${appointment.service?.name}. Notes: ${appointment.notes || 'N/A'}`, `LOCATION:${appointment.vet?.address}`, 'END:VEVENT', 'END:CALENDAR'].join('\n');
     return `data:text/calendar;charset=utf8,${encodeURIComponent(icsContent)}`;
 };
 
@@ -18,7 +18,9 @@ const AppointmentDetailModal: React.FC<{ appointment: Appointment; onClose: () =
     const isUpcoming = useMemo(() => new Date(appointment.appointment_time) > new Date(), [appointment.appointment_time]);
     const [isExiting, setIsExiting] = useState(false);
     const [preVisitData, setPreVisitData] = useState(appointment.pre_visit_data || { reason_for_visit: '', symptoms: '', changes_in_behavior: '' });
-    const [documents, setDocuments] = useState<{name: string}[]>(appointment.documents || []);
+    // FIX: Safely initialize the 'documents' state by checking if `appointment.documents` is an array.
+    // This prevents type errors when `appointment.documents` is a non-array JSON value.
+    const [documents, setDocuments] = useState<{name: string}[]>(Array.isArray(appointment.documents) ? (appointment.documents as any[]) : []);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleClose = () => { setIsExiting(true); setTimeout(onClose, 300); };

@@ -126,8 +126,6 @@ const BookingScreen: React.FC<{ vet: Vet; pets: Pet[]; user: User; onBookingConf
     const [error, setError] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
 
-    // FIX: Use useMemo to safely normalize the 'services' property into an array.
-    // This resolves type errors where array methods like '.length' or '.map' were called on a non-array.
     const safeServices: VetService[] = useMemo(() => {
         if (!vet.services) return [];
         return Array.isArray(vet.services) ? vet.services : [vet.services];
@@ -149,6 +147,7 @@ const BookingScreen: React.FC<{ vet: Vet; pets: Pet[]; user: User; onBookingConf
             <BookingProgress step={step} />
             {error && <p className="text-red-600 bg-red-50 p-3 rounded-md text-center text-sm">{error}</p>}
             {step === 1 && (<><div className="mt-4"><h3 className="font-bold text-lg mb-2">1. Select your pet</h3><div className="flex gap-4 overflow-x-auto pb-2">{pets.map(pet => <button key={pet.id} onClick={() => setSelectedPet(pet)} className={`flex-shrink-0 text-center p-2 border-2 rounded-lg ${selectedPet?.id === pet.id ? 'border-teal-500 bg-teal-50' : 'border-transparent'}`}><img src={pet.photo_url} alt={pet.name} className="w-16 h-16 rounded-full object-cover"/><p className="text-sm font-semibold mt-1">{pet.name}</p></button>)}</div></div><div><h3 className="font-bold text-lg mb-2">2. Choose a service</h3><div className="space-y-2">
+{/* FIX: Use `safeServices` which is guaranteed to be an array, instead of `vet.services`. */}
 {safeServices.length > 0
     ? safeServices.map(s => <button key={s.id} onClick={() => setSelectedService(s)} className={`w-full text-left p-3 rounded-lg border-2 ${selectedService?.id === s.id ? 'border-teal-500 bg-teal-50' : 'bg-white'}`}><div className="flex justify-between items-center"><div><p className="font-semibold">{s.name}</p><p className="text-sm text-gray-500">{s.duration_minutes} min</p></div><p className="font-bold text-teal-600">₹{s.price}</p></div></button>)
     : <p className="text-sm text-gray-500 bg-gray-100 p-3 rounded-md">This veterinarian has not listed any specific services yet. You can book a 'General Consultation'.</p>}</div></div><button onClick={() => setStep(2)} disabled={!selectedPet || !selectedService} className="w-full bg-teal-500 text-white font-bold py-3 rounded-lg disabled:opacity-50 mt-4">Next: Choose Date & Time</button></>)}

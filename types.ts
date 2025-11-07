@@ -244,6 +244,14 @@ export interface AdoptablePet extends Omit<AdoptionListing, 'shelter'> {
   shelter_name: string;
 }
 
+export type AdoptionWorkflowStatus = 
+  | 'SUBMITTED' 
+  | 'AWAITING_ADOPTER_AGREEMENT' 
+  | 'AWAITING_FINAL_CONFIRMATION' 
+  | 'ADOPTED' 
+  | 'REJECTED' 
+  | 'WITHDRAWN';
+
 export interface AdoptionApplication {
   id: string;
   auth_user_id: string;
@@ -258,10 +266,13 @@ export interface AdoptionApplication {
     timeAlone: string;
     experience: 'First-time' | 'Experienced';
     motivation: string;
+    workflow_status?: AdoptionWorkflowStatus;
   };
   document_url?: string;
   // For UI display
-  listing?: Pick<AdoptionListing, 'name' | 'photos' | 'breed'>;
+  listing?: Pick<AdoptionListing, 'id' | 'name' | 'photos' | 'breed'>;
+  user?: Pick<UserProfile, 'name' | 'email'>; // For admin view
+  shelter?: Pick<Shelter, 'name'>; // For admin view
 }
 
 

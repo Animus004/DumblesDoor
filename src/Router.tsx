@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
@@ -21,6 +22,7 @@ import ConnectScreen from '../components/ConnectScreen';
 import AdminDashboardScreen from '../components/AdminDashboardScreen';
 import { AdoptionScreen, PetDetailScreen, AdoptionApplicationScreen, MyApplicationsScreen } from '../components/AdoptionScreens';
 import ChatScreen from './components/ChatScreen';
+import AdoptionAgreementScreen from '../components/AdoptionAgreementScreen';
 
 
 interface AppRouterProps {
@@ -101,6 +103,8 @@ const AppRouter: React.FC<AppRouterProps> = ({
             <Route path="/adoption" element={<AdoptionScreen />} />
             <Route path="/adoption/:petId" element={<PetDetailScreen />} />
             <Route path="/adoption/:petId/apply" element={<AdoptionApplicationScreen userProfile={profile} />} />
+            <Route path="/adoption-agreement/:applicationId" element={<AdoptionAgreementScreen />} />
+
 
             {/* Profile Sub-Routes */}
             <Route path="/my-applications" element={<MyApplicationsScreen />} />

@@ -1,8 +1,9 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
-import type { UserProfile, AdoptionListing, AdoptablePet, AdoptionApplication, Shelter } from '../types';
+import type { UserProfile, AdoptionListing, AdoptablePet, AdoptionApplication, Shelter, AdoptionWorkflowStatus } from '../types';
 
 // --- AdoptionScreen ---
 export const AdoptionScreen: React.FC = () => {
@@ -141,7 +142,15 @@ export const AdoptionApplicationScreen: React.FC<{ userProfile: UserProfile | nu
             auth_user_id: userProfile.auth_user_id,
             listing_id: listing.id,
             shelter_id: listing.shelter_id,
-            application_data: { motivation, experience: 'Experienced' /* mock data */, residenceType: 'Own', homeType: 'House', hasYard: true, timeAlone: '2-4 hours' },
+            application_data: { 
+                motivation, 
+                experience: 'Experienced', /* mock data */ 
+                residenceType: 'Own', 
+                homeType: 'House', 
+                hasYard: true, 
+                timeAlone: '2-4 hours',
+                workflow_status: 'SUBMITTED', // Add initial workflow status
+            },
             status: 'Submitted',
         });
         setSubmitting(false);
@@ -186,7 +195,7 @@ export const MyApplicationsScreen: React.FC = () => {
 
             const { data, error } = await supabase
                 .from('adoption_applications')
-                .select('*, listing:adoption_listings(name, photos)')
+                .select('*, listing:adoption_listings(id, name, photos)')
                 .eq('auth_user_id', user.id);
             
             if (data) {
@@ -197,13 +206,25 @@ export const MyApplicationsScreen: React.FC = () => {
         fetchApplications();
     }, []);
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'Submitted': return 'bg-blue-100 text-blue-800';
-            case 'In Review': return 'bg-yellow-100 text-yellow-800';
-            case 'Approved': return 'bg-green-100 text-green-800';
-            case 'Rejected': return 'bg-red-100 text-red-800';
-            default: return 'bg-gray-100 text-gray-800';
+    const getStatusInfo = (app: AdoptionApplication): { text: string; color: string; action?: () => void, actionText?: string } => {
+        const workflowStatus = app.application_data?.workflow_status;
+
+        switch (workflowStatus) {
+            case 'AWAITING_ADOPTER_AGREEMENT':
+                return { text: 'Action Required: View Agreement', color: 'bg-yellow-100 text-yellow-800', action: () => navigate(`/adoption-agreement/${app.id}`, { state: { application: app } }), actionText: "View Agreement" };
+            case 'AWAITING_FINAL_CONFIRMATION':
+                return { text: 'Pending Final Confirmation from Shelter', color: 'bg-blue-100 text-blue-800' };
+            case 'ADOPTED':
+                return { text: 'Congratulations! Adopted!', color: 'bg-green-100 text-green-800' };
+            default:
+                // Fallback to main status
+                switch (app.status) {
+                    case 'Submitted': return { text: 'Application Submitted', color: 'bg-blue-100 text-blue-800' };
+                    case 'In Review': return { text: 'In Review by Shelter', color: 'bg-yellow-100 text-yellow-800' };
+                    case 'Approved': return { text: 'Approved!', color: 'bg-green-100 text-green-800' };
+                    case 'Rejected': return { text: 'Application Rejected', color: 'bg-red-100 text-red-800' };
+                    default: return { text: app.status, color: 'bg-gray-100 text-gray-800' };
+                }
         }
     };
     
@@ -215,15 +236,23 @@ export const MyApplicationsScreen: React.FC = () => {
             </header>
             <main className="p-4 space-y-4">
                 {loading && <p>Loading applications...</p>}
-                {!loading && applications.map(app => (
-                    <div key={app.id} className="bg-white p-4 rounded-lg shadow-sm flex items-center space-x-4">
-                        <img src={app.listing?.photos[0]} alt={app.listing?.name} className="w-16 h-16 rounded-lg object-cover" />
-                        <div>
-                            <p className="font-bold">{app.listing?.name}</p>
-                            <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${getStatusColor(app.status)}`}>{app.status}</span>
+                {!loading && applications.map(app => {
+                    const statusInfo = getStatusInfo(app);
+                    return (
+                        <div key={app.id} className="bg-white p-4 rounded-lg shadow-sm" onClick={statusInfo.action}>
+                            <div className="flex items-center space-x-4">
+                                <img src={app.listing?.photos[0]} alt={app.listing?.name} className="w-16 h-16 rounded-lg object-cover" />
+                                <div>
+                                    <p className="font-bold">{app.listing?.name}</p>
+                                    <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statusInfo.color}`}>{statusInfo.text}</span>
+                                </div>
+                            </div>
+                            {statusInfo.action && (
+                                <button onClick={statusInfo.action} className="w-full mt-3 bg-teal-500 text-white font-bold text-sm py-2 rounded-lg">{statusInfo.actionText}</button>
+                            )}
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
                 {!loading && applications.length === 0 && <p>You have not submitted any applications yet.</p>}
             </main>
         </div>

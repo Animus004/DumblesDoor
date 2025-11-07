@@ -4,42 +4,32 @@ import type { User } from '@supabase/supabase-js';
 import { supabase } from '../services/supabaseClient';
 import type { UserProfile, AdoptionListing, Shelter } from '../types';
 
-// --- HELPER: Get or Create a 'Personal Shelter' for a user ---
-async function getOrCreatePersonalShelter(user: User, profile: UserProfile): Promise<Shelter> {
+// --- HELPER: Get the ID of the 'Community Rehoming' shelter ---
+async function getCommunityShelterId(): Promise<string> {
     if (!supabase) throw new Error("Supabase client not initialized");
-    
-    // 1. Check if a shelter exists with this user's email
-    let { data: existingShelter, error: selectError } = await supabase
+
+    // This is an assumed name for a generic shelter for individual listings.
+    // This record must exist in the 'shelters' table for this feature to work.
+    const COMMUNITY_SHELTER_NAME = "Dumble's Door Community Rehoming";
+
+    let { data: communityShelter, error } = await supabase
         .from('shelters')
-        .select('*')
-        .eq('email', user.email!)
+        .select('id')
+        .eq('name', COMMUNITY_SHELTER_NAME)
         .limit(1)
         .single();
 
-    if (existingShelter) {
-        return existingShelter as Shelter;
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+        throw new Error(`Database error while fetching community shelter: ${error.message}`);
     }
 
-    if (selectError && selectError.code !== 'PGRST116') { // PGRST116 = no rows found
-        throw selectError;
+    if (!communityShelter) {
+        // In a real production app, you might create this shelter via a script or have an admin UI.
+        // For now, we'll throw an error indicating a configuration issue.
+        throw new Error(`This feature is temporarily unavailable. The "${COMMUNITY_SHELTER_NAME}" shelter is not configured.`);
     }
 
-    // 2. If not, create one.
-    const { data: newShelter, error: insertError } = await supabase
-        .from('shelters')
-        .insert({
-            name: `${profile.name}'s Rehoming`,
-            address: profile.city || 'Not specified',
-            city: profile.city || 'Not specified',
-            phone: profile.phone || '0000000000',
-            email: user.email!,
-            verified: false, // Individual listings are not verified by default
-        })
-        .select()
-        .single();
-    
-    if (insertError) throw insertError;
-    return newShelter as Shelter;
+    return communityShelter.id;
 }
 
 
@@ -74,7 +64,7 @@ const CreateAdoptionListingForm: React.FC<{
         setError('');
 
         try {
-            const personalShelter = await getOrCreatePersonalShelter(user, profile);
+            const communityShelterId = await getCommunityShelterId();
             
             // Upload photos
             const uploadedPhotoUrls: string[] = [];
@@ -89,8 +79,11 @@ const CreateAdoptionListingForm: React.FC<{
                  uploadedPhotoUrls.push('https://i.ibb.co/2vX5vVd/default-pet-avatar.png');
             }
 
+            // Embed an owner tag in the story to identify the user's listings later
+            const storyWithOwnerTag = `[owner:${user.id}]\n${formData.story || ''}`;
+
             const listingData = {
-                shelter_id: personalShelter.id,
+                shelter_id: communityShelterId,
                 name: formData.name!,
                 species: formData.species!,
                 breed: formData.breed!,
@@ -99,7 +92,7 @@ const CreateAdoptionListingForm: React.FC<{
                 gender: formData.gender!,
                 photos: uploadedPhotoUrls,
                 description: formData.description!,
-                story: formData.story || null,
+                story: storyWithOwnerTag,
                 good_with: formData.good_with || [],
                 special_needs: formData.special_needs || [],
                 status: 'Pending Approval' as const,
@@ -174,19 +167,18 @@ const MyListingsScreen: React.FC<MyListingsScreenProps> = ({ user, profile }) =>
         setLoading(true);
         setError('');
         try {
-            // Find the user's personal shelter by email
-            const { data: shelter, error: shelterError } = await supabase.from('shelters').select('id').eq('email', user.email!).limit(1).single();
+            const communityShelterId = await getCommunityShelterId();
             
-            if (shelterError && shelterError.code !== 'PGRST116') throw shelterError;
+            // Fetch listings from the community shelter that are tagged with the current user's ID
+            const { data, error: listingsError } = await supabase
+                .from('adoption_listings')
+                .select('*')
+                .eq('shelter_id', communityShelterId)
+                .like('story', `%[owner:${user.id}]%`);
 
-            if (shelter) {
-                // Fetch listings associated with that shelter
-                const { data, error: listingsError } = await supabase.from('adoption_listings').select('*').eq('shelter_id', shelter.id);
-                if (listingsError) throw listingsError;
-                setMyListings(data || []);
-            } else {
-                setMyListings([]); // No shelter means no listings
-            }
+            if (listingsError) throw listingsError;
+            setMyListings(data || []);
+            
         } catch (err: any) {
             setError(`Failed to load listings: ${err.message}`);
         } finally {

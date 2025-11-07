@@ -1,9 +1,11 @@
 
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import type { UserProfile, AdoptionListing, AdoptablePet, AdoptionApplication, Shelter, AdoptionWorkflowStatus } from '../types';
+import { getUserLocation, calculateDistance } from '../lib/geolocation';
+
 
 // --- AdoptionScreen ---
 export const AdoptionScreen: React.FC = () => {
@@ -11,13 +13,29 @@ export const AdoptionScreen: React.FC = () => {
     const [listings, setListings] = useState<AdoptionListing[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    
+    const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | null>(null);
+    const [locationError, setLocationError] = useState<string | null>(null);
+    const [distanceRadius, setDistanceRadius] = useState<number>(100); // Default 100km
+
+    useEffect(() => {
+        getUserLocation()
+            .then(location => {
+                setUserLocation(location);
+                setLocationError(null);
+            })
+            .catch(err => {
+                console.warn(err.message);
+                setLocationError("Couldn't get your location. Showing all pets.");
+            });
+    }, []);
 
     useEffect(() => {
         const fetchListings = async () => {
             setLoading(true);
             const { data, error } = await supabase
                 .from('adoption_listings')
-                .select('*, shelter:shelters(name, city)')
+                .select('*, shelter:shelters(name, city, location)')
                 .eq('status', 'Available')
                 .order('created_at', { ascending: false });
 
@@ -31,14 +49,39 @@ export const AdoptionScreen: React.FC = () => {
         };
         fetchListings();
     }, []);
+    
+    const listingsWithDistance = useMemo(() => {
+        if (!userLocation) return listings;
+        return listings.map(listing => {
+            const shelterLoc = (listing.shelter as any)?.location?.coordinates;
+            if (!shelterLoc || shelterLoc.length !== 2) {
+                return { ...listing, distance_km: undefined };
+            }
+            const distance = calculateDistance(userLocation.latitude, userLocation.longitude, shelterLoc[1], shelterLoc[0]);
+            return { ...listing, distance_km: distance };
+        }).sort((a, b) => (a.distance_km ?? Infinity) - (b.distance_km ?? Infinity));
+    }, [listings, userLocation]);
+
+    const filteredListings = useMemo(() => {
+        if (!userLocation) return listings; // Show all if location is not available
+        return listingsWithDistance.filter(l => l.distance_km === undefined || l.distance_km <= distanceRadius);
+    }, [listingsWithDistance, distanceRadius, userLocation, listings]);
+
 
     const PetCard: React.FC<{ listing: AdoptionListing }> = ({ listing }) => (
-        <Link to={`/adoption/${listing.id}`} className="bg-white rounded-lg shadow-sm overflow-hidden group">
+        <Link to={`/adoption/${listing.id}`} className="bg-white rounded-lg shadow-sm overflow-hidden group flex flex-col">
             <img src={listing.photos[0]} alt={listing.name} className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105" />
-            <div className="p-4">
+            <div className="p-4 flex-grow flex flex-col">
                 <h3 className="font-bold text-lg">{listing.name}</h3>
-                <p className="text-sm text-gray-600">{listing.breed}</p>
-                <p className="text-xs text-gray-500 mt-1">{listing.age} • {(listing.shelter as Shelter)?.city}</p>
+                <p className="text-sm text-gray-600 flex-grow">{listing.breed}</p>
+                <div className="flex justify-between items-center mt-2">
+                    <p className="text-xs text-gray-500 mt-1">{listing.age} • {(listing.shelter as Shelter)?.city}</p>
+                    {listing.distance_km !== undefined && (
+                        <p className="text-xs font-semibold text-teal-600 bg-teal-50 px-2 py-1 rounded-full">
+                            {listing.distance_km.toFixed(1)} km
+                        </p>
+                    )}
+                </div>
             </div>
         </Link>
     );
@@ -48,12 +91,40 @@ export const AdoptionScreen: React.FC = () => {
             <header className="p-4 border-b bg-white sticky top-0 z-10">
                 <h1 className="text-xl font-bold text-center">Find a Pet to Adopt</h1>
             </header>
+            
+            {userLocation && (
+                <div className="p-4 bg-white border-b sticky top-[65px] z-10">
+                    <label htmlFor="distance-slider" className="text-sm font-medium text-gray-700 block mb-1">
+                        Show pets within <span className="font-bold text-teal-600">{distanceRadius} km</span>
+                    </label>
+                    <input
+                        id="distance-slider"
+                        type="range"
+                        min="5"
+                        max="100"
+                        step="5"
+                        value={distanceRadius}
+                        onChange={(e) => setDistanceRadius(Number(e.target.value))}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500"
+                    />
+                </div>
+            )}
+            {locationError && !userLocation && (
+                 <div className="p-4 text-center bg-yellow-50 text-yellow-700 text-sm font-semibold">{locationError}</div>
+            )}
+
             <main className="p-4">
-                {loading && <p>Loading pets...</p>}
-                {error && <p className="text-red-500">{error}</p>}
+                {loading && <div className="text-center p-8"><div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-teal-500 mx-auto"></div><p className="mt-2 text-gray-600">Loading pets...</p></div>}
+                {error && <p className="text-red-500 bg-red-50 p-4 rounded-lg text-center">{error}</p>}
+                {!loading && !error && filteredListings.length === 0 && (
+                     <div className="text-center text-gray-500 pt-16">
+                        <p className="font-semibold">No pets found</p>
+                        <p>Try expanding your search radius or check back later!</p>
+                    </div>
+                )}
                 {!loading && !error && (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {listings.map(listing => <PetCard key={listing.id} listing={listing} />)}
+                        {filteredListings.map(listing => <PetCard key={listing.id} listing={listing} />)}
                     </div>
                 )}
             </main>

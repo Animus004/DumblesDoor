@@ -236,6 +236,7 @@ export interface AdoptionListing {
   created_at: string;
   // Joined data for UI display
   shelter?: Shelter | { name: string; city: string; };
+  distance_km?: number;
 }
 
 // This type represents the data returned by the 'nearby_pets' RPC

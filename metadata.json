@@ -2,6 +2,7 @@
   "name": "Copy of Dumble's Door",
   "description": "An all-in-one Indian pet care app providing AI-powered health checks, vet booking, product recommendations, and a complete digital log for your pet's journey.",
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "geolocation"
   ]
 }

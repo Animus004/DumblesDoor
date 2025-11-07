@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
@@ -6,6 +7,9 @@ import type { User } from '@supabase/supabase-js';
 import type { NearbyVet, Vet, VetService, Pet, Appointment } from '../types';
 import VetProfileScreen from './VetProfileScreen';
 import SkeletonLoader from './SkeletonLoader';
+import { getUserLocation, calculateDistance } from '../lib/geolocation';
+import VetFilterModal, { type VetFilters } from './VetFilterModal';
+
 
 const QUICK_BOOK_SERVICES = [
     { name: 'Checkup', icon: '🩺', keyword: 'Consultation' },
@@ -27,7 +31,10 @@ const VetCard: React.FC<{ vet: NearbyVet; onSelect: () => void; isEmergency?: bo
     <div className="w-full text-left bg-white rounded-xl shadow-md overflow-hidden flex items-start p-4 gap-4">
         <img src={vet.photo_url || 'https://i.ibb.co/hZJc3Bw/vet-1.jpg'} alt={vet.name} className="w-24 h-24 rounded-lg object-cover" />
         <div className="flex-grow">
-            {vet.verified && <span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Verified</span>}
+            <div className="flex justify-between">
+                {vet.verified && <span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Verified</span>}
+                 {vet.distance_km !== undefined && <span className="text-xs font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{vet.distance_km.toFixed(1)} km</span>}
+            </div>
             <h3 className="font-bold text-lg mt-1">{vet.name}</h3>
             <p className="text-sm text-gray-500 line-clamp-1">{vet.specialization?.join(', ')}</p>
             <div className="flex items-center text-sm mt-1"><span className="text-yellow-500">★</span><span className="font-semibold ml-1">{vet.rating || 'N/A'}</span><span className="text-gray-400 ml-1">({vet.review_count || 0} reviews)</span></div>
@@ -55,16 +62,25 @@ const TriageScreen = ({ onSelectPath }: { onSelectPath: (path: 'emergency' | 'ro
 
 const VetSearchScreen = ({ onSelectVet, emergencyMode, onExitEmergencyMode }: { onSelectVet: (vet: Vet) => void, emergencyMode: boolean, onExitEmergencyMode: () => void }) => {
     const [allVets, setAllVets] = useState<Vet[]>([]);
-    const [filteredVets, setFilteredVets] = useState<Vet[]>([]);
+    const [filteredVets, setFilteredVets] = useState<NearbyVet[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [quickFilter, setQuickFilter] = useState<string | null>(null);
+    
+    const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+    const [locationError, setLocationError] = useState<string | null>(null);
+    const [distanceRadius, setDistanceRadius] = useState<number>(50);
+    const [isFilterModalOpen, setFilterModalOpen] = useState(false);
+    const [filters, setFilters] = useState<VetFilters>({ sortBy: 'distance', filterBy: [] });
 
     useEffect(() => {
+        getUserLocation().then(setUserLocation).catch(err => setLocationError(err.message));
+
         const getApprovedVets = async () => {
             if (!supabase) { setLoading(false); setError("Database connection is not available."); return; }
             setLoading(true); setError('');
             try {
+                // Assuming `location` column exists on `professional_profiles` table, but is missing from generated types.
                 const { data, error: queryError } = await supabase.from('professional_profiles').select('*, services:vet_services(*)').eq('profile_type', 'veterinarian').eq('status', 'approved');
                 if (queryError) throw queryError;
                 setAllVets((data as Vet[]) || []);
@@ -74,25 +90,67 @@ const VetSearchScreen = ({ onSelectVet, emergencyMode, onExitEmergencyMode }: { 
         getApprovedVets();
     }, []);
 
+    const vetsWithDistance = useMemo(() => {
+        if (!userLocation) return allVets.map(v => ({ ...v, distance_km: undefined }));
+        return allVets.map(vet => {
+            const vetLocation = (vet as any).location?.coordinates;
+            if (vetLocation && vetLocation.length === 2) {
+                const distance = calculateDistance(userLocation.latitude, userLocation.longitude, vetLocation[1], vetLocation[0]);
+                return { ...vet, distance_km: distance };
+            }
+            return { ...vet, distance_km: undefined };
+        });
+    }, [allVets, userLocation]);
+
     useEffect(() => {
-        if (!loading) {
-            const vets = allVets.filter(v => {
-                const services = Array.isArray(v.services) ? v.services : (v.services ? [v.services] : []);
-                return emergencyMode 
-                    ? v.is_24_7 
-                    : !quickFilter || services.some(s => s.name.toLowerCase().includes(quickFilter.toLowerCase()));
-            });
-            setFilteredVets(vets);
+        let processedVets: NearbyVet[] = [...vetsWithDistance];
+
+        // Filter by services, 24/7 etc.
+        processedVets = processedVets.filter(v => {
+            const services = Array.isArray(v.services) ? v.services : (v.services ? [v.services] : []);
+            if (emergencyMode && !v.is_24_7) return false;
+            if (quickFilter && !services.some(s => s.name.toLowerCase().includes(quickFilter.toLowerCase()))) return false;
+            if (filters.filterBy.includes('emergency') && !v.is_24_7) return false;
+            if (filters.filterBy.includes('teleconsult') && !services.some(s => s.name.toLowerCase().includes('tele'))) return false;
+            return true;
+        });
+
+        // Filter by distance radius
+        if(userLocation) {
+            processedVets = processedVets.filter(v => v.distance_km === undefined || v.distance_km <= distanceRadius);
         }
-    }, [allVets, loading, quickFilter, emergencyMode]);
+
+        // Sort
+        if (filters.sortBy === 'distance' && userLocation) {
+            processedVets.sort((a, b) => (a.distance_km ?? Infinity) - (b.distance_km ?? Infinity));
+        } else if (filters.sortBy === 'rating') {
+            processedVets.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        }
+        
+        setFilteredVets(processedVets);
+    }, [vetsWithDistance, quickFilter, emergencyMode, distanceRadius, filters, userLocation]);
     
     return (
         <div className="p-4 space-y-4">
-            {emergencyMode ? (
+             {emergencyMode ? (
                 <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded-r-lg"><p className="text-red-800 font-bold">Showing 24/7 emergency vets.</p><button onClick={onExitEmergencyMode} className="text-sm font-semibold text-red-600 mt-1">Exit Emergency Mode</button></div>
             ) : (
                 <div><h3 className="font-bold text-gray-700 mb-2">Quick Book</h3><div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">{QUICK_BOOK_SERVICES.map(s => <button key={s.name} onClick={() => setQuickFilter(s.keyword)} className={`flex-shrink-0 flex flex-col items-center justify-center w-24 h-24 rounded-xl p-2 border-2 transition-colors ${quickFilter === s.keyword ? 'bg-teal-50 border-teal-500' : 'bg-white'}`}><span className="text-3xl">{s.icon}</span><span className="text-xs font-semibold">{s.name}</span></button>)}</div></div>
             )}
+            
+            <div className="p-3 bg-white rounded-lg shadow-sm">
+                <div className="flex justify-between items-center">
+                    <label htmlFor="distance-slider" className="text-sm font-medium text-gray-700">
+                        Distance: <span className="font-bold text-teal-600">{distanceRadius} km</span>
+                    </label>
+                    <button onClick={() => setFilterModalOpen(true)} className="text-sm font-semibold text-teal-600 flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z" /></svg>
+                        Sort & Filter
+                    </button>
+                </div>
+                 <input id="distance-slider" type="range" min="5" max="100" step="5" value={distanceRadius} onChange={e => setDistanceRadius(Number(e.target.value))} className="w-full mt-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500" disabled={!userLocation} />
+            </div>
+
             {error && <p className="text-red-500 bg-red-50 text-center p-3 rounded-md">{error}</p>}
             
             {loading ? (
@@ -100,10 +158,11 @@ const VetSearchScreen = ({ onSelectVet, emergencyMode, onExitEmergencyMode }: { 
                     {[...Array(3)].map((_, i) => <SkeletonLoader key={i} className="h-32" />)}
                 </div>
             ) : filteredVets.length === 0 ? (
-                <div className="text-center text-gray-500 pt-8"><p className="font-semibold">No Approved Vets Found</p><p>We are currently onboarding professionals in your area. Please check back soon!</p></div>
+                <div className="text-center text-gray-500 pt-8"><p className="font-semibold">No Vets Found</p><p>Try adjusting your filters or search radius.</p></div>
             ) : (
                 <div className="space-y-4">{filteredVets.map(vet => <VetCard key={vet.id} vet={vet} onSelect={() => onSelectVet(vet)} isEmergency={emergencyMode} />)}</div>
             )}
+            <VetFilterModal isOpen={isFilterModalOpen} onClose={() => setFilterModalOpen(false)} onApplyFilters={setFilters} initialFilters={filters} />
         </div>
     );
 };

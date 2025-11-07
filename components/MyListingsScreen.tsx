@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../services/supabaseClient';
 import type { UserProfile, AdoptionListing, Shelter } from '../types';
-import { dogBreeds, catBreeds } from '../lib/petBreeds';
 
 // --- HELPER: Get or Create a 'Personal Shelter' for a user ---
 async function getOrCreatePersonalShelter(user: User, profile: UserProfile): Promise<Shelter> {
@@ -90,9 +89,6 @@ const CreateAdoptionListingForm: React.FC<{
                  uploadedPhotoUrls.push('https://i.ibb.co/2vX5vVd/default-pet-avatar.png');
             }
 
-            // FIX: Construct the listing data object explicitly to match the database insert type.
-            // The spread operator `...formData` was causing a type mismatch because formData is a Partial<AdoptionListing>
-            // and may contain properties not expected by the 'insert' method, while also making required properties seem optional.
             const listingData = {
                 shelter_id: personalShelter.id,
                 name: formData.name!,

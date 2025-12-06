@@ -1,0 +1,16 @@
+{
+  "appId": "com.dumblesdoor.app",
+  "appName": "Dumble's Door",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "Keyboard": {
+      "resize": "body",
+      "style": "dark",
+      "resizeOnFullScreen": true
+    }
+  }
+}

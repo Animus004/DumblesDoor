@@ -1,4 +1,3 @@
-// Trigger Vercel deployment
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { HealthCheckResult, Pet, UserProfile, LogoutAnalytics } from './types';
@@ -199,7 +198,13 @@ const App: React.FC = () => {
     const showBottomNav = ['/home', '/book', '/connect', '/adoption', '/profile'].includes(location.pathname);
 
     return (
-        <div className="app-container" style={{paddingBottom: showBottomNav ? '4rem' : '0'}}>
+        <div 
+            className="app-container" 
+            style={{
+                paddingBottom: showBottomNav ? 'calc(4rem + env(safe-area-inset-bottom))' : 'env(safe-area-inset-bottom)',
+                paddingTop: 'env(safe-area-inset-top)'
+            }}
+        >
             <AppRouter
                 user={user}
                 profile={profile}

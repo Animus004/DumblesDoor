@@ -21,6 +21,12 @@
   /* --- CORE STYLES --- */
   --orb-color-1: var(--color-bg-gradient-start);
   --orb-color-2: var(--color-bg-gradient-end);
+
+  /* --- SAFE AREA INSETS (For Mobile Notches/Home Bars) --- */
+  --sat: env(safe-area-inset-top);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
+  --sar: env(safe-area-inset-right);
 }
 
 body.dark-theme {
@@ -56,6 +62,8 @@ body.cat-theme.dark-theme {
 body {
   font-family: 'DM Sans', sans-serif;
   background-color: var(--color-bg-gradient-start); /* Fallback */
+  padding-left: var(--sal);
+  padding-right: var(--sar);
 }
 .font-poppins {
   font-family: 'Poppins', sans-serif;
@@ -456,6 +464,8 @@ body {
 .auth-container {
   min-height: 100vh;
   background-color: #f8fafc; /* gray-50 */
+  padding-top: var(--sat); /* Ensure auth screen respects top notch */
+  padding-bottom: var(--sab);
 }
 .auth-card {
   animation: auth-fade-in 0.5s ease-out;

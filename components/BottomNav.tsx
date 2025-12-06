@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 
@@ -32,7 +31,11 @@ const BottomNav: React.FC = () => {
   return (
     <footer 
         className="fixed bottom-0 left-0 right-0 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] z-30 backdrop-blur-lg"
-        style={{ backgroundColor: 'var(--nav-bg)' }}
+        style={{ 
+          backgroundColor: 'var(--nav-bg)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          height: 'calc(4rem + env(safe-area-inset-bottom))'
+        }}
     >
       <div className="flex justify-around items-center h-16 px-2">
         <NavItem
